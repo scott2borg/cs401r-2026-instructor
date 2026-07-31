@@ -2276,10 +2276,12 @@ Define SLOs for the NorthStar churn prediction model in `docs/lab6-runbook.md`.
 |-----|--------|----------------------------------|-------------|--------------------------|
 | Availability | 99.5% | Successful predictions / total requests | | |
 | Latency (p95) | **< 20 ms** (`ModelLatency` ≤ `20000`) | Requests completing < 20 ms / total requests | | |
-| Prediction Quality | Recall@10% ≥ 0.35 on weekly sample | Weekly sample passing threshold / total weekly samples | | |
+| Prediction Quality | Recall@10% ≥ 0.25 on weekly sample | Weekly sample passing threshold / total weekly samples | | |
 | Fairness | Recall gap across loyalty tiers ≤ 10pp | Weeks within fairness threshold / total weeks | | |
 
 Fill in the Error Budget (in minutes/month or events/month) and the Deployment Freeze Trigger for each SLO.
+
+> **Why the prediction-quality target is 0.25 and not something rounder.** With roughly 21% positives in the population, scoring only the top 10% caps achievable recall near **0.48** — you cannot retrieve more churners than fit in the decile you are allowed to contact. The Lab 3 reference model achieves **0.293**, and Lab 4's promotion gate is **≥ 0.25**. Setting the SLO above the gate that let the model ship would put it in breach on the day it launched. An SLO your system fails at launch is not a target; it is a broken alarm you will learn to ignore.
 
 > **Why the latency SLO is 20 ms while the Task 1 alert fires at 200 ms.** These are different numbers doing different jobs, and conflating them is the most common SLO mistake in industry. An **SLO** is a promise measured over a month and spent down as an error budget. An **alert threshold** is the point at which you wake a human. Measured steady-state p95 on this endpoint is ~4.15 ms, so a 200 ms SLO would be met 48x over — free, unbreachable, and it would teach you nothing. At 20 ms you keep a healthy ~5x margin, but the ~24,000 µs cold start on every deployment *does* breach it. That is the intended lesson: your own deploys consume your error budget, which is precisely why error budgets govern deployment freezes.
 
