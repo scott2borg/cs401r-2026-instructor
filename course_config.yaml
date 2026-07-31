@@ -1,0 +1,297 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CS 401R Course Configuration
+# Single source of truth for the build_course.py pipeline.
+# Edit this file to update the course; re-run the pipeline to push changes.
+# ─────────────────────────────────────────────────────────────────────────────
+
+course:
+  title:      "CS 401R: Engineering Production AI Systems"
+  code:       "CS401R"
+  semester:   "Fall 2026"
+  instructor: "Scott Toborg"
+  email:      "scott@toborg.com"
+  credits:    3
+  format:     "In-person lecture + AWS lab"
+  start_date: "2026-09-03"          # first day of class
+  end_date:   "2026-12-10"          # last day of class
+
+canvas:
+  base_url:  "https://byu.instructure.com"
+  course_id: "34609"
+  timezone:  "America/Denver"       # MDT/MST — used for due date calculations
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Source book directory — change this to point at a different book/project
+# ─────────────────────────────────────────────────────────────────────────────
+
+source:
+  directory:   "/Users/scott1/Documents/Vault/Efforts/Projects/Active/EAIE"
+  bibliography: "Build/references.bib"
+  output_dir:  "Build/canvas_chapters"   # relative to source.directory
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chapter definitions
+# Each entry: file path (relative to source.directory), output PDF name,
+# and the list of module names it should appear in.
+# ─────────────────────────────────────────────────────────────────────────────
+
+chapters:
+  - file:    "Part 3. Build/AI Systems Development Lifecycle--The Framework for Building Production Systems.md"
+    pdf:     "Ch01-AI-Systems-Development-Lifecycle.pdf"
+    modules: ["Week 02 — AISDLC + Platform I (Sep 8–10)"]
+
+  - file:    "Part 3. Build/AI Platform & Cloud Architecture--Building the Foundation for Scalable Systems.md"
+    pdf:     "Ch02-AI-Platform-Cloud-Architecture.pdf"
+    modules:
+      - "Week 02 — AISDLC + Platform I (Sep 8–10)"
+      - "Week 03 — Platform II + Data Engineering I (Sep 15–17)"
+
+  - file:    "Part 3. Build/Data & Feature Engineering--Turning Raw Data into AI Fuel.md"
+    pdf:     "Ch03-Data-Feature-Engineering.pdf"
+    modules:
+      - "Week 03 — Platform II + Data Engineering I (Sep 15–17)"
+      - "Week 04 — Data Engineering II + Model Dev I (Sep 22–24)"
+
+  - file:    "Part 3. Build/Model Development--Training, Fine-Tuning, RAG, and Orchestrating Intelligence.md"
+    pdf:     "Ch04-Model-Development.pdf"
+    modules:
+      - "Week 04 — Data Engineering II + Model Dev I (Sep 22–24)"
+      - "Week 05 — Model Dev II & III: RAG + Agents (Sep 29–Oct 1)"
+
+  - file:    "Part 3. Build/The XOps Stack—Applying DevOps Discipline to Data, Models, LLMs, and Agents.md"
+    pdf:     "Ch05-XOps-Stack.pdf"
+    modules: ["Week 06 — XOps I & II (Oct 6–8)"]
+
+  - file:    "Part 3. Build/Testing and Evaluation--Verifying That AI Does What It Claims.md"
+    pdf:     "Ch06-Testing-Evaluation.pdf"
+    modules: ["Week 07 — Testing & Evaluation (Oct 13–15)"]
+
+  - file:    "Part 3. Build/Continuous Delivery—Automating the Pipeline From Commit to Production.md"
+    pdf:     "Ch07-Continuous-Delivery.pdf"
+    modules: ["Week 08 — Continuous Delivery (Oct 20–22)"]
+
+  - file:    "Part 3. Build/Deployment and Scaling--Getting AI Into the World and Growing It With Confidence.md"
+    pdf:     "Ch08-Deployment-Scaling.pdf"
+    modules: ["Week 09 — Deployment & Scaling (Oct 27–29)"]
+
+  - file:    "Part 3. Build/Security, Privacy & Compliance--Building Systems That Are Secure, Private, and Compliant by Design.md"
+    pdf:     "Ch09-Security-Privacy-Compliance.pdf"
+    modules: ["Week 10 — Security, Privacy & Compliance (Nov 3–5)"]
+
+  - file:    "Part 4. Operate/Metrics, Benchmarks, and Guardrails—Defining What Success Looks Like.md"
+    pdf:     "Ch10-Metrics-Benchmarks-Guardrails.pdf"
+    modules: ["Week 11 — Metrics + Monitoring (Nov 10–12)"]
+
+  - file:    "Part 4. Operate/Monitoring, Observability & Model Lifecycle Management.md"
+    pdf:     "Ch11-Monitoring-Observability.pdf"
+    modules: ["Week 11 — Metrics + Monitoring (Nov 10–12)"]
+
+  - file:    "Part 4. Operate/Reliability Engineering—Building AI Systems That Hold Under Pressure and Recover Fast.md"
+    pdf:     "Ch12-Reliability-Engineering.pdf"
+    modules: ["Week 12 — Reliability + Economics (Nov 17–19)"]
+
+  - file:    "Part 4. Operate/AI Economics—Managing Costs and Measuring Returns.md"
+    pdf:     "Ch13-AI-Economics.pdf"
+    modules: ["Week 12 — Reliability + Economics (Nov 17–19)"]
+
+  - file:    "Part 4. Operate/Measuring Business Value—Closing the Gap Between What AI Does and What the Business Needs.md"
+    pdf:     "Ch14-Measuring-Business-Value.pdf"
+    modules: ["Week 13 — Business Value + Project Launch (Nov 24)"]
+
+  - file:    "Part 4. Operate/AI Governance—Establishing Accountability, Policies, and Oversight.md"
+    pdf:     "Ch15-AI-Governance.pdf"
+    modules: ["Week 14 — Team Project Workshop I (Dec 1–3)"]
+
+  - file:    "Part 4. Operate/Closing the Loop—Feeding Operational Intelligence Back Into Strategy, Design, and Development.md"
+    pdf:     "Ch16-Closing-the-Loop.pdf"
+    modules: ["Week 15 — Team Project Workshop II + Final Thoughts (Dec 8–10)"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Course modules (Canvas weekly structure)
+# ─────────────────────────────────────────────────────────────────────────────
+
+modules:
+  - "Start Here"
+  - "Week 01 — Introduction (Sep 3)"
+  - "Week 02 — AISDLC + Platform I (Sep 8–10)"
+  - "Week 03 — Platform II + Data Engineering I (Sep 15–17)"
+  - "Week 04 — Data Engineering II + Model Dev I (Sep 22–24)"
+  - "Week 05 — Model Dev II & III: RAG + Agents (Sep 29–Oct 1)"
+  - "Week 06 — XOps I & II (Oct 6–8)"
+  - "Week 07 — Testing & Evaluation (Oct 13–15)"
+  - "Week 08 — Continuous Delivery (Oct 20–22)"
+  - "Week 09 — Deployment & Scaling (Oct 27–29)"
+  - "Week 10 — Security, Privacy & Compliance (Nov 3–5)"
+  - "Week 11 — Metrics + Monitoring (Nov 10–12)"
+  - "Week 12 — Reliability + Economics (Nov 17–19)"
+  - "Week 13 — Business Value + Project Launch (Nov 24)"
+  - "Week 14 — Team Project Workshop I (Dec 1–3)"
+  - "Week 15 — Team Project Workshop II + Final Thoughts (Dec 8–10)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Grading — assignment groups and weights
+# ─────────────────────────────────────────────────────────────────────────────
+
+grading:
+  weighted: true
+  groups:
+    - name: "Labs"
+      weight: 60
+    - name: "Final Project"
+      weight: 25
+    - name: "Reading Quizzes"
+      weight: 10
+    - name: "Participation"
+      weight: 5
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Labs
+# ─────────────────────────────────────────────────────────────────────────────
+
+labs:
+  - number:      1
+    title:       "Platform Foundation"
+    assigned:    "2026-09-03"
+    due:         "2026-09-19"
+    module:      "Week 01 — Introduction (Sep 3)"
+    starter_kit: "Starter Kits/Lab 1"   # relative to vault CS_401R_2026 folder
+    points:      100
+
+  - number:      2
+    title:       "Data & Feature Engineering"
+    assigned:    "2026-09-17"
+    due:         "2026-10-03"
+    module:      "Week 03 — Platform II + Data Engineering I (Sep 15–17)"
+    starter_kit: "Starter Kits/Lab 2"
+    points:      100
+
+  - number:      3
+    title:       "Model Development"
+    assigned:    "2026-10-01"
+    due:         "2026-10-17"
+    module:      "Week 05 — Model Dev II & III: RAG + Agents (Sep 29–Oct 1)"
+    starter_kit: "Starter Kits/Lab 3"
+    points:      100
+
+  - number:      4
+    title:       "XOps, Testing & CI/CD Pipeline"
+    assigned:    "2026-10-15"
+    due:         "2026-10-31"
+    module:      "Week 07 — Testing & Evaluation (Oct 13–15)"
+    starter_kit: "Starter Kits/Lab 4"
+    points:      100
+
+  - number:      5
+    title:       "Deployment & Scaling"
+    assigned:    "2026-10-29"
+    due:         "2026-11-14"
+    module:      "Week 09 — Deployment & Scaling (Oct 27–29)"
+    starter_kit: null
+    points:      100
+
+  - number:      6
+    title:       "Monitoring & Reliability"
+    assigned:    "2026-11-12"
+    due:         "2026-11-28"
+    module:      "Week 11 — Metrics + Monitoring (Nov 10–12)"
+    starter_kit: null
+    points:      100
+
+  - number:      7
+    title:       "Metrics, Economics & Business Value"
+    assigned:    "2026-11-19"
+    due:         "2026-12-01"          # Tuesday exception
+    module:      "Week 12 — Reliability + Economics (Nov 17–19)"
+    starter_kit: null
+    points:      100
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reading quizzes
+# open_date: Saturday before the week's Tuesday class (8 AM MDT)
+# due_date:  Monday before the week's Tuesday class (11:59 PM MDT)
+# ─────────────────────────────────────────────────────────────────────────────
+
+quizzes:
+  - title:     "Quiz — Week 02: AISDLC + AI Platform"
+    open_date: "2026-09-05"
+    due_date:  "2026-09-07"
+    module:    "Week 02 — AISDLC + Platform I (Sep 8–10)"
+    points:    10
+
+  - title:     "Quiz — Week 03: AI Platform II + Data Engineering"
+    open_date: "2026-09-12"
+    due_date:  "2026-09-14"
+    module:    "Week 03 — Platform II + Data Engineering I (Sep 15–17)"
+    points:    10
+
+  - title:     "Quiz — Week 04: Data Engineering II + Model Development"
+    open_date: "2026-09-19"
+    due_date:  "2026-09-21"
+    module:    "Week 04 — Data Engineering II + Model Dev I (Sep 22–24)"
+    points:    10
+
+  - title:     "Quiz — Week 05: RAG + Agent Development"
+    open_date: "2026-09-26"
+    due_date:  "2026-09-28"
+    module:    "Week 05 — Model Dev II & III: RAG + Agents (Sep 29–Oct 1)"
+    points:    10
+
+  - title:     "Quiz — Week 06: XOps Stack"
+    open_date: "2026-10-03"
+    due_date:  "2026-10-05"
+    module:    "Week 06 — XOps I & II (Oct 6–8)"
+    points:    10
+
+  - title:     "Quiz — Week 07: Testing & Evaluation"
+    open_date: "2026-10-10"
+    due_date:  "2026-10-12"
+    module:    "Week 07 — Testing & Evaluation (Oct 13–15)"
+    points:    10
+
+  - title:     "Quiz — Week 08: Continuous Delivery"
+    open_date: "2026-10-17"
+    due_date:  "2026-10-19"
+    module:    "Week 08 — Continuous Delivery (Oct 20–22)"
+    points:    10
+
+  - title:     "Quiz — Week 09: Deployment & Scaling"
+    open_date: "2026-10-24"
+    due_date:  "2026-10-26"
+    module:    "Week 09 — Deployment & Scaling (Oct 27–29)"
+    points:    10
+
+  - title:     "Quiz — Week 10: Security, Privacy & Compliance"
+    open_date: "2026-10-31"
+    due_date:  "2026-11-02"
+    module:    "Week 10 — Security, Privacy & Compliance (Nov 3–5)"
+    points:    10
+
+  - title:     "Quiz — Week 11: Metrics + Monitoring"
+    open_date: "2026-11-07"
+    due_date:  "2026-11-09"
+    module:    "Week 11 — Metrics + Monitoring (Nov 10–12)"
+    points:    10
+
+  - title:     "Quiz — Week 12: Reliability Engineering + AI Economics"
+    open_date: "2026-11-14"
+    due_date:  "2026-11-16"
+    module:    "Week 12 — Reliability + Economics (Nov 17–19)"
+    points:    10
+
+  - title:     "Quiz — Week 13: Measuring Business Value"
+    open_date: "2026-11-21"
+    due_date:  "2026-11-23"
+    module:    "Week 13 — Business Value + Project Launch (Nov 24)"
+    points:    10
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Final project
+# ─────────────────────────────────────────────────────────────────────────────
+
+final_project:
+  team_size:      "2–3"
+  teams_due:      "2026-11-25"
+  submission_due: "2026-12-17"
+  team_module:    "Week 13 — Business Value + Project Launch (Nov 24)"
+  submit_module:  "Week 14 — Team Project Workshop I (Dec 1–3)"
+  points:         100
