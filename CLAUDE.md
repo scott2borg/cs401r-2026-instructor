@@ -32,6 +32,23 @@ The reference account `711457211658` is **not** representative. It has accrued e
 | `ml.m6g.large` / `ml.m6g.xlarge` **endpoint** | 2 / 1 | Graviton, non-burstable |
 | All on-demand **training** | 0 | Spot training has non-zero defaults for 12 types |
 
+## SageMaker Model Monitor scheduling is CLOSED to new accounts (2026-07-31)
+
+`CreateMonitoringSchedule` **and** `CreateDataQualityJobDefinition` both return:
+
+```
+ValidationException: This operation is in maintenance mode and is not
+available to new customers. Existing customers are unaffected.
+```
+
+Not a quota. Not a permission. The API is closed to accounts that were not already using it, and **every student account is new**. No workaround exists at the API level.
+
+**What still works:** `CreateProcessingJob`, and the `model-monitor-analyzer` container itself. Verified — the analyzer runs as a plain processing job against captured data and emits `constraints.json`, `statistics.json`, `constraint_violations.json`. Lab 6 Task 1 is built on that path now.
+
+**Constraint on that path:** `publish_cloudwatch_metrics` must be `Disabled`; `Enabled` fails with *"CloudWatch publishing is available only for jobs from MonitoringSchedules"*. Students publish their own metric from the violations JSON.
+
+**Implication beyond Lab 6:** treat any AWS API this course depends on as possibly closed to new accounts, regardless of what documentation says. Verify on the reference account only after remembering it is *not* new — it has usage history the students' accounts will not have.
+
 ## Deployment-path facts (verified on AWS 2026-07-31)
 
 | Question | Answer | Evidence |

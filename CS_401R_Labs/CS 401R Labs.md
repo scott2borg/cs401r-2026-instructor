@@ -2064,34 +2064,35 @@ Lab 5 taught you that a SageMaker endpoint bills from `InService` until deletion
 
 | Resource | Rate | Notes |
 |---|---|---|
-| `ml.m5.large` endpoint | **$0.115 / hr** | Same as Lab 5 |
+| Endpoint — `ml.t2.medium` | **$0.056 / hr** | Where Lab 5 starts you |
+| Endpoint — `ml.m5.large` | **$0.115 / hr** | Only if your Lab 5 quota increase came through |
 | Model Monitor processing job | **$0.10 / hr** | `ml.t3.large`, billed per second, only while a job runs |
 | CloudWatch alarm | $0.10 / alarm-month | Prorated hourly; 6 alerts ≈ $0.60/mo if left |
 | CloudWatch custom metric | $0.30 / metric-month | **Not prorated** — you pay for the month |
 | CloudWatch dashboard | free (first 3) | Then $3/mo |
 
-A monitoring job costs nearly as much per hour as the endpoint it monitors, but it only runs for minutes, so in practice it adds roughly 10% to your bill. **Measured 2026-07-31: a baseline job on `ml.t3.large` took 5 min 46 s of billed instance time and cost $0.010.**
+A monitoring job costs more per hour than a `t2.medium` endpoint, but it only runs for minutes, so in practice it adds roughly 15% to your bill. **Measured 2026-07-31: a baseline job on `ml.t3.large` took 5 min 46 s of billed instance time and cost $0.010.**
 
-What this actually costs you:
+What this actually costs you — the column that applies depends on which instance Lab 5 left you on:
 
-| If you… | Total |
-|---|---|
-| Work in one focused session and tear down (3 h) | **$0.68** |
-| Leave it running overnight (14 h) | **$2.07** |
-| Forget for three days (72 h) | **$9.34** |
-| Forget for a week (168 h) | **$21.38** |
+| If you… | On `ml.t2.medium` | On `ml.m5.large` |
+|---|---|---|
+| Work in one focused session and tear down (3 h) | **$0.50** | **$0.68** |
+| Leave it running overnight (14 h) | **$1.24** | **$2.07** |
+| Forget for three days (72 h) | **$5.09** | **$9.34** |
+| Forget for a week (168 h) | **$11.47** | **$21.38** |
 
-Your burn rate with the endpoint live and an hourly schedule running is **$0.1254/hour**.
+Burn rate with the endpoint live and one analysis run per hour: **$0.0664/hr** on `t2.medium`, **$0.1254/hr** on `m5.large`.
 
-> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 77 hours — 3.2 days.** You have a 16-day submission window. Do the lab in one sitting and tear it down.
+> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 146 hours (6.1 days) on `t2.medium`, or 77 hours (3.2 days) on `m5.large`.** You have a 16-day submission window, so either number is reachable by simply forgetting. Do the lab in one sitting and tear it down.
 
-**The part that is new and catches people:** a monitoring schedule keeps launching billable processing jobs on its own cadence, *independent of whether you are still working, and independent of whether the endpoint still exists.* Deleting the endpoint does not delete the schedule. `scripts/teardown-lab5.sh` does not delete monitoring schedules. **Use `scripts/teardown-lab6.sh`.**
+**The part that is new and catches people:** each analyzer run is a *separate* billable instance on top of the endpoint. The endpoint bills continuously; every analysis you launch adds ~6 minutes of `ml.t3.large` on top. Two or three runs is normal while you get the inputs right.
 
-Use an **hourly** monitoring schedule, not a daily one. Hourly gets you a graded artifact in about two hours. Daily forces a 24-hour billing window on you for no additional learning.
+If you automate the analysis on a timer (EventBridge, a cron job, a loop), **that timer keeps launching billable jobs whether or not you are still working, and whether or not the endpoint still exists.** `scripts/teardown-lab5.sh` knows nothing about monitoring. **Use `scripts/teardown-lab6.sh`** — it stops in-flight processing jobs and removes any schedule before deleting the endpoint.
 
 ## Prerequisites — do this before Task 1
 
-Three things must be true before you create a monitoring schedule. Two of them fail *expensively* and *silently* — the failure surfaces roughly an hour later, while the endpoint bills the whole time.
+Three things must be true before you run the analyzer. Two of them fail *expensively* and *silently* — a misconfigured run burns 6-14 minutes of instance time before telling you anything useful, and the endpoint bills the whole while.
 
 Run the pre-flight check:
 
@@ -2136,7 +2137,7 @@ If you want `ml.m5.large` for processing, you must file a Service Quotas increas
 
 ### 1. Your endpoint must have data capture enabled
 
-Model Monitor analyses inference data that the endpoint captured to S3. **No capture means nothing to analyse.** Model Monitor does not warn you about this: the schedule is accepted, executions run, and reports come back empty while looking healthy.
+Model Monitor analyses inference data that the endpoint captured to S3. **No capture means nothing to analyse**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
 
 **Endpoint configs are immutable.** Capture cannot be switched on for a running endpoint. If your endpoint was deployed without it, you must create a new endpoint config and call `update-endpoint` (~3 min 47 s, zero downtime):
 
@@ -2156,7 +2157,7 @@ The platform has two similarly named roles and they are **not interchangeable**:
 | `northstar-dev-ModelMonitor` | **Observer** identity. Read-only by design: no S3 write, no ECR pull. | Humans and automation that watch the platform |
 | `northstar-dev-ModelMonitorExecution` | **Service execution** identity. Writes reports, pulls the analyzer container. | **Model Monitor schedules — this lab** |
 
-A monitoring execution is a batch job whose entire purpose is to *write* its findings (`statistics.json`, `constraint_violations.json`) and it cannot start without pulling its container from ECR. Hand it the observer role and it fails about an hour after you create the schedule, as an opaque `ProcessingJobStatus: Failed`.
+A monitoring execution is a batch job whose entire purpose is to *write* its findings (`statistics.json`, `constraint_violations.json`) and it cannot start without pulling its container from ECR. Hand it the observer role and the job fails several minutes in as an opaque `ProcessingJobStatus: Failed`.
 
 This distinction — an identity that observes versus an identity that executes — is the design point, not a technicality. Note it in your Task 3 deliverable.
 
@@ -2170,7 +2171,7 @@ Implement monitoring across all five layers for the NorthStar churn model. All l
 |-------|----------------|------|-----------|
 | **Infrastructure** | SageMaker endpoint CPU, memory | CloudWatch Metrics | CPU > 80% → alert |
 | **Pipeline** | Glue job success/failure rate | CloudWatch Events | Any failure → P2 alert |
-| **Model** | Data drift (PSI on top 3 features) | SageMaker Model Monitor | PSI > 0.2 → alert |
+| **Model** | Data drift (PSI on top 3 features) | Model Monitor analyzer, run as a processing job | PSI > 0.2 → alert (metric published by you) |
 | **Application** | Inference latency p50, p95, p99 | CloudWatch Metrics | p95 > 200 ms → alert (`ModelLatency` threshold `200000` — see note) |
 | **Business** | Daily churn alert volume (proxy) | CloudWatch Custom Metric | Volume drop >30% vs. 7-day avg → alert |
 
@@ -2178,19 +2179,53 @@ Implement monitoring across all five layers for the NorthStar churn model. All l
 >
 > Related: the **first invocation after a deploy runs ~6x slower** (~24,000 µs measured) as the container warms. An alarm with `EvaluationPeriods: 1` will trip on your own deployment.
 
+> ### ⚠️ SageMaker Model Monitor **schedules** cannot be created on a new AWS account
+>
+> Both `CreateMonitoringSchedule` and `CreateDataQualityJobDefinition` now return:
+>
+> ```
+> ValidationException: This operation is in maintenance mode and is not
+> available to new customers. Existing customers are unaffected.
+> ```
+>
+> This is **not** a quota, a permission, or a mistake in your configuration. AWS has closed the API to accounts that were not already using it, and every account in this course is new. Verified on AWS 2026-07-31. Do not spend time trying to work around it — you cannot.
+>
+> **What still works is everything that matters.** `CreateProcessingJob` is unaffected and the `model-monitor-analyzer` container runs normally. You will run the analyzer yourself as a processing job instead of having SageMaker run it for you on a schedule. You lose the managed cron; you keep the entire analysis.
+>
+> This is a better exercise than the one it replaces. A managed schedule is a checkbox. Invoking the analyzer directly means you have to understand what it actually consumes — captured data, a baseline, a dataset format — and what it emits.
+
 **Requirements:**
-- SageMaker Model Monitor data quality monitoring job configured and running, on an **hourly** schedule, on **`ml.t3.large`**, using the `ModelMonitorExecution` role
+- A **baseline** generated from your training feature set with `suggest_baseline`, on **`ml.t3.large`**, using the `ModelMonitorExecution` role. Commit `statistics.json` and `constraints.json`.
+- A **monitoring analysis run** — the analyzer executed as a processing job against your captured inference data, producing `constraint_violations.json`. Commit it.
 - At least one custom CloudWatch metric pushed programmatically (business layer)
 - Dashboard JSON exported and committed to `monitoring/dashboards/northstar-dashboard.json`
 
-Your baseline job produces `statistics.json` and `constraints.json`. Commit both — they are the evidence that Task 1's monitoring layer is real. A reference baseline over 1,377 customers profiled 12 features; `days_since_last_purchase` came out mean 58.80, std 78.24, range 0–452, with `completeness` 1.0 and `inferred_type` `Fractional`. Your numbers will differ; the *shape* of the output should not.
+**Running the analyzer manually.** Submit a processing job with image `156813124566.dkr.ecr.us-east-1.amazonaws.com/sagemaker-model-monitor-analyzer` and these environment variables:
+
+```
+dataset_source              /opt/ml/processing/input/endpoint
+dataset_format              {"sagemakerCaptureJson":{"captureIndexNames":["endpointInput"]}}
+output_path                 /opt/ml/processing/output
+baseline_constraints        /opt/ml/processing/baseline/constraints/constraints.json
+baseline_statistics         /opt/ml/processing/baseline/stats/statistics.json
+analysis_type               DATA_QUALITY
+publish_cloudwatch_metrics  Disabled
+```
+
+> **`publish_cloudwatch_metrics` must be `Disabled`.** Setting it to `Enabled` fails the job after roughly eight minutes with `AlgorithmError: CloudWatch publishing is available only for jobs from MonitoringSchedules.` — and since you cannot create a schedule, you cannot enable it. **This is why the model layer of your dashboard is your own job:** parse `constraint_violations.json` and publish your own metric with `put-metric-data`. That is the same work the managed schedule was doing for you.
+
+Mount three inputs: your capture prefix to `/opt/ml/processing/input/endpoint`, `constraints.json` to `/opt/ml/processing/baseline/constraints`, and `statistics.json` to `/opt/ml/processing/baseline/stats`.
+
+**Capture is partitioned per variant** — `datacapture/<endpoint>/<variant>/<yyyy>/<mm>/<dd>/<hh>/`. If you ran a two-variant canary in Lab 5, point the analyzer at one variant's prefix, and say in your write-up which one and why.
+
+Reference numbers from a verified run: a baseline over 1,200 customers profiled 11 features (`days_since_last_purchase` mean 58.80, `completeness` 1.0, `inferred_type` `Fractional`); the analysis run consumed 174 captured records and returned `"violations": []`. Your numbers will differ; the *shape* of the output should not.
 
 **Rubric:**
 
 | Item | Points | Pass Criteria |
 |------|--------|---------------|
 | All 5 layers visible in CloudWatch Dashboard | 15 | TA can open the dashboard and see at least one metric per layer |
-| SageMaker Model Monitor configured | 10 | Monitoring schedule exists; at least one baseline statistics report generated **and readable in S3** |
+| Model Monitor baseline **and** analysis run | 10 | `statistics.json` + `constraints.json` from a baseline job, **and** a `constraint_violations.json` from an analyzer processing job over captured data. A schedule is NOT required and cannot be created — see the note above. |
 | Custom metric pushed for business layer | 5 | `aws cloudwatch get-metric-statistics` returns data for the custom metric |
 | Dashboard JSON committed | 5 | `monitoring/dashboards/northstar-dashboard.json` is valid CloudWatch Dashboard JSON |
 
@@ -2306,20 +2341,22 @@ Write complete runbooks for **two** failure scenarios in `docs/lab6-runbook.md`.
 
 These cost previous runs of this course real time and real money. They are not hypothetical.
 
-1. **Processing-job quota defaults to 0 for every non-burstable instance.** Not low — zero. Only `ml.t3.{medium,large,xlarge}` have a non-zero default. Endpoint, training and processing quotas are three separate numbers per instance type; one being fine says nothing about the others. Use `ml.t3.large`. Verified 2026-07-31.
-2. **`ml.t3.medium` cannot run Model Monitor.** The analyzer is a Spark container and OOMs on ~1,400 rows after **13 min 43 s**, with an error that blames your data volume rather than the instance memory. `ml.t3.large` is the floor.
-3. **`ModelLatency` is in microseconds.** 200 ms is `200000`. Every latency threshold in this lab depends on this. Verified both directions on AWS: `200000` stayed `OK`, `1000` alarmed in under a minute.
-4. **Cold start is ~6x steady-state latency** (~24,000 µs vs ~4,150 µs). An alarm with `EvaluationPeriods: 1` trips on your own deployment.
-5. **No data capture means no monitoring.** Model Monitor fails silently and late. Run `scripts/preflight-lab6.sh` first.
-6. **`ModelMonitor` ≠ `ModelMonitorExecution`.** The observer role cannot run a monitoring job. Fails ~1 hour in, as an opaque `Failed`.
-7. **Endpoint configs are immutable.** Data capture cannot be added to a running endpoint; you must roll a new config.
-8. **Endpoints bill hourly until deleted.** Rolling back to weight 0 does not stop the charge.
-9. **Monitoring schedules outlive endpoints** and keep launching billable jobs. Delete the schedule explicitly.
-10. **Burstable instances cannot be auto-scaling targets** (carried from Lab 5).
-11. **IAM propagation lag ~30 s** — re-running immediately shows the *old* error and looks like your fix failed.
-12. **Non-ASCII in AWS-facing `description` fields** — some services reject em dashes, others accept them, so failures look arbitrary.
-13. **Console Resource Explorer lags hours.** Verify against the live API.
-14. **Auto-scaling does NOT orphan scalable targets** on endpoint deletion. Verified. Do not "fix" this non-problem.
+1. **Model Monitor SCHEDULES cannot be created on a new AWS account.** `CreateMonitoringSchedule` and `CreateDataQualityJobDefinition` are both in maintenance mode and closed to new customers. No quota or permission fixes it. Run the analyzer as a processing job instead — the container is unaffected. Verified 2026-07-31.
+2. **`publish_cloudwatch_metrics` must be `Disabled`** on a manually-run analyzer. `Enabled` fails after ~8 minutes with *"CloudWatch publishing is available only for jobs from MonitoringSchedules"*, and you cannot create a schedule.
+3. **Processing-job quota defaults to 0 for every non-burstable instance.** Not low — zero. Only `ml.t3.{medium,large,xlarge}` have a non-zero default. Endpoint, training and processing quotas are three separate numbers per instance type; one being fine says nothing about the others. Use `ml.t3.large`. Verified 2026-07-31.
+4. **`ml.t3.medium` cannot run Model Monitor.** The analyzer is a Spark container and OOMs on ~1,400 rows after **13 min 43 s**, with an error that blames your data volume rather than the instance memory. `ml.t3.large` is the floor.
+5. **`ModelLatency` is in microseconds.** 200 ms is `200000`. Every latency threshold in this lab depends on this. Verified both directions on AWS: `200000` stayed `OK`, `1000` alarmed in under a minute.
+6. **Cold start is ~6x steady-state latency** (~24,000 µs vs ~4,150 µs). An alarm with `EvaluationPeriods: 1` trips on your own deployment.
+7. **No data capture means no monitoring.** Model Monitor fails silently and late. Run `scripts/preflight-lab6.sh` first.
+8. **`ModelMonitor` ≠ `ModelMonitorExecution`.** The observer role cannot run a monitoring job. Fails ~1 hour in, as an opaque `Failed`.
+9. **Endpoint configs are immutable.** Data capture cannot be added to a running endpoint; you must roll a new config.
+10. **Endpoints bill hourly until deleted.** Rolling back to weight 0 does not stop the charge.
+11. **Monitoring schedules outlive endpoints** and keep launching billable jobs. Delete the schedule explicitly.
+12. **Burstable instances cannot be auto-scaling targets** (carried from Lab 5).
+13. **IAM propagation lag ~30 s** — re-running immediately shows the *old* error and looks like your fix failed.
+14. **Non-ASCII in AWS-facing `description` fields** — some services reject em dashes, others accept them, so failures look arbitrary.
+15. **Console Resource Explorer lags hours.** Verify against the live API.
+16. **Auto-scaling does NOT orphan scalable targets** on endpoint deletion. Verified. Do not "fix" this non-problem.
 
 ## Teardown (required — read before you submit)
 

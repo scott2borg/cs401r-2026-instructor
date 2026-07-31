@@ -1,6 +1,6 @@
 ---
-tags: [CS401R, git, github, setup]
 created: 2026-07-31
+tags: [CS401R, git, github, setup]
 purpose: Repo fingerprint and commit workflow for the CS 401R course project
 ---
 
