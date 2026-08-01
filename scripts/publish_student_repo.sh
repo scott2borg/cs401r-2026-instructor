@@ -57,6 +57,7 @@ ALLOW=(
   "CS_401R_Labs/Lab_4--XOps & CICD.md"
   "CS_401R_Labs/Lab_5--Deployment & Security.md"
   "CS_401R_Labs/Lab_6--Monitoring & Reliability.md"
+  "CS_401R_Labs/Lab_7--Metrics & Business Value.md"
   "CS_401R_Labs/Lab_1 Architecture_Diagram_Description.md"
   "CS_401R_Labs/Lab_1 LocalStack_Check.md"
   "CS_401R_Labs/Fix Credentials Problem.md"
