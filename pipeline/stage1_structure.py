@@ -55,7 +55,7 @@ growing e-commerce presence, ~$3.2B annual revenue.</p>
 <h2>AI Systems</h2>
 <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%">
   <tr><th>System</th><th>Type</th><th>Business Goal</th></tr>
-  <tr><td>Churn Prediction</td><td>Batch ML (XGBoost)</td><td>Identify at-risk customers 30 days before churn</td></tr>
+  <tr><td>Churn Prediction</td><td>Batch ML (XGBoost)</td><td>Identify at-risk customers 90 days before churn</td></tr>
   <tr><td>Offer Generation</td><td>LLM / RAG</td><td>Personalize retention offers</td></tr>
   <tr><td>Customer Service Agent</td><td>Agentic AI</td><td>Handle inquiries and escalations autonomously</td></tr>
 </table>

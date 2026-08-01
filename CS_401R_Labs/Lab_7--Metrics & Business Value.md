@@ -114,15 +114,15 @@ A 21.2% rate per 90 days compounds to roughly **61% per year**, which is not 18%
 
 **What this means for your work:**
 
-- **Business math** (value, ROI, lost LTV, the CDO's target) uses the case figures: 2.1M active customers, 18% annual churn, $340 lifetime value.
+- **Business math** (value, ROI, lost LTV, the CDO's target) uses the case figures: 2.1M active customers, 18% annual churn, $340 lifetime value — which multiply to the case's stated $128.5M annual churn problem. That headline number is reproducible, and your analysis should reconcile to it.
 - **Model math** (recall, precision, lift, achievable coverage) uses the measured dataset figures: 21.2% base rate, Recall@10% of 0.293 against a ceiling near 0.48.
 - **Never multiply one by the other without saying so.** Any place your analysis crosses between them, state the bridging assumption in one sentence. Task 2 is graded partly on whether you did.
 
-### 4. The churn label is 90 days. It is not 30 days.
+### 4. The churn label is 90 days
 
-Lab 2 derives `churn_label` from a **90-day holdout window** following the observation period. Lab 6's drift plan is built on it. Everything in Lab 7 — measurement windows, attribution windows, time-to-outcome — must use **90 days**.
+Lab 2 derives `churn_label` from a **90-day holdout window** following the observation period. Lab 3 trains against it, Lab 6's drift plan depends on it, and the case overview states it. Everything in Lab 7 — measurement windows, attribution windows, time-to-outcome — must use **90 days**.
 
-Some earlier case material refers to a "30-day churn probability." **That text is superseded by the lab specification.** A value methodology note that claims outcomes are observable in 30 days is describing a system nobody built, and it will cost points in Task 4.
+Watch the distinction between the *label* window and the *feature* windows, because both appear in the same table. `purchase_frequency_30d` looks **back** 30 days to build a feature; `churn_label` looks **forward** 90 days to record an outcome. A value methodology note that reports outcomes on a 30-day cycle has confused the two, and it will cost points in Task 4.
 
 ## Your Measured Inputs
 
@@ -409,7 +409,7 @@ Roughly 300 words in Section 5.
 6. **Bedrock output-token prices are absent from the Price List API** in us-east-1, and its Claude model coverage is stale. Use the pricing page and cite the date.
 7. **Failed jobs bill.** The reference account spent more instance time on one analyzer run that ran out of memory (13 min 42 s) than on the one that succeeded (5 min 45 s). Cost models built from successful runs are optimistic by construction.
 8. **The 18%/year case figure and the 21.2% dataset figure are not the same quantity.** Different population, different window. Mixing them produces confident nonsense.
-9. **The churn label is 90 days, not 30.** Any measurement window shorter than the label reports outcomes that have not happened yet.
+9. **The churn label looks forward 90 days; several features look back 30.** They sit in the same feature table and are easy to conflate. Any measurement window shorter than 90 days reports outcomes that have not happened yet.
 10. **`ModelLatency` is in microseconds** (carried from Lab 6). If you cite latency in a cost or SLO context, cite the unit.
 11. **A real-time endpoint bills 24×7 for a weekly batch workload.** Both Lab 5 and Lab 6 built one, deliberately, because they were teaching deployment and monitoring. Whether that is the right architecture for *this* workload is a Task 2d question, and it has a large answer.
 12. **Recall@10% is capped near 0.48** by the base rate and the decile constraint — you cannot retrieve more churners than fit in the 10% of the population you are allowed to contact. Any business projection implying recall above that ceiling is arithmetically impossible, not merely optimistic.

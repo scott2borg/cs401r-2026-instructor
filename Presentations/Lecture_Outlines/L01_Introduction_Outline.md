@@ -116,7 +116,7 @@ slides_target: 16
 - CDO has commissioned three AI systems to drive customer retention
 
 **Three AI Systems:**
-1. **Churn Prediction** — XGBoost batch model on SageMaker; identifies at-risk customers 30 days before churn
+1. **Churn Prediction** — XGBoost batch model on SageMaker; identifies at-risk customers 90 days before churn
 2. **Offer Generation** — LLM/RAG pipeline on Bedrock; personalizes retention offers using customer history + product catalog
 3. **Customer Service Agent** — ReAct agent on Bedrock; handles order inquiries, returns, and escalations autonomously
 

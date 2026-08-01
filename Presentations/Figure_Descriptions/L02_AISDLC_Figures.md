@@ -38,7 +38,7 @@
 
 ## Slide 7 — Stage 1: Define Problem
 
-**Figure:** *AI Project Charter template mockup.* A clean document layout showing a realistic (but brief) filled-in example for the NorthStar churn prediction system. Sections: Problem Statement ("Identify customers at risk of churning within 30 days..."), Success Criteria ("AUC ≥ 0.75, precision ≥ 0.68 at threshold 0.4"), Constraints ("$15K/month inference budget, GDPR compliance, no PII in feature names"), Gate Owner ("CDO, Maria Chen"). Document is formatted like a professional one-pager. Header: "NorthStar Retail — AI Project Charter."
+**Figure:** *AI Project Charter template mockup.* A clean document layout showing a realistic (but brief) filled-in example for the NorthStar churn prediction system. Sections: Problem Statement ("Identify customers at risk of churning within 90 days..."), Success Criteria ("AUC ≥ 0.75, precision ≥ 0.68 at threshold 0.4"), Constraints ("$15K/month inference budget, GDPR compliance, no PII in feature names"), Gate Owner ("CDO, Maria Chen"). Document is formatted like a professional one-pager. Header: "NorthStar Retail — AI Project Charter."
 
 ---
 

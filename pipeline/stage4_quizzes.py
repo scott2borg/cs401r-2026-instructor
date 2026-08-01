@@ -441,7 +441,7 @@ QUESTION_BANK: dict[str, list[dict]] = {
         {
             "type": "mc",
             "text": "Why is concept drift detection particularly challenging for the NorthStar churn prediction model?",
-            "correct": "Churn ground truth labels are only observable 30 days after prediction, creating an unavoidable lag before the model can be evaluated against actual outcomes.",
+            "correct": "Churn ground truth labels are only observable 90 days after prediction, creating an unavoidable lag before the model can be evaluated against actual outcomes.",
             "wrong": [
                 "The churn model is retrained so frequently that drift cannot accumulate meaningfully.",
                 "CloudWatch does not natively support custom metric emission from SageMaker endpoints.",
@@ -530,7 +530,7 @@ QUESTION_BANK: dict[str, list[dict]] = {
             "correct": "The model prevented an estimated $4.2M in annual revenue loss by enabling targeted retention campaigns, delivering a 3.1× ROI on platform investment.",
             "wrong": [
                 "The model achieves an AUC-ROC of 0.78 on the held-out validation dataset.",
-                "The model correctly identifies 72% of customers who will churn within 30 days.",
+                "The model correctly identifies 72% of customers who will churn within 90 days.",
                 "The model serves predictions at p95 latency of 45ms with 99.9% endpoint availability.",
             ],
         },

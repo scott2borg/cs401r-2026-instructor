@@ -1703,7 +1703,7 @@ def L05_data_1():
             "Model consumer: algorithm — will confidently apply learned distribution to bad data",
             "  → Failures are invisible until they're expensive",
             "Data quality problems are PRODUCTION BUGS — treat them like code bugs",
-            "  → Schema change in POS feed → churn model silently degrades for 30 days",
+            "  → Schema change in POS feed → churn model silently degrades for 90 days",
             "Training/serving skew: model trains on one distribution, serves on another",
             "  → The most common and hardest-to-debug production failure in ML",
             "Data lineage: you must know where every feature came from to debug failures",
@@ -3514,7 +3514,7 @@ def L21_monitoring():
             "  → Detection: SageMaker Model Monitor with baseline statistics + threshold alerts",
             "PSI interpretation: < 0.1 = stable | 0.1–0.2 = moderate shift → investigate | > 0.2 = major shift → retrain",
         ],
-        notes="The concept drift detection challenge for churn is genuinely hard: you don't know if a customer churned until 30-90 days later. The proxy signal approach: monitor the DISTRIBUTION of churn probability scores from the model. If the model is still well-calibrated, a shift in score distribution suggests concept drift before you have ground truth labels.")
+        notes="The concept drift detection challenge for churn is genuinely hard: you don't know if a customer churned until 90 days later. The proxy signal approach: monitor the DISTRIBUTION of churn probability scores from the model. If the model is still well-calibrated, a shift in score distribution suggests concept drift before you have ground truth labels.")
 
     make_content_slide(prs, "Statistical Tests for Drift",
         [

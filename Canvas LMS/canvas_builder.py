@@ -594,7 +594,7 @@ modeled on real enterprise retailers at this scale.</p>
 <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%">
   <tr><th>System</th><th>Type</th><th>Business Goal</th></tr>
   <tr><td><strong>Churn Prediction</strong></td><td>Batch ML (XGBoost)</td>
-      <td>Identify at-risk customers 30 days before churn; trigger retention offers</td></tr>
+      <td>Identify at-risk customers 90 days before churn; trigger retention offers</td></tr>
   <tr><td><strong>Offer Generation</strong></td><td>LLM / RAG</td>
       <td>Personalize retention offers using customer history and product catalog</td></tr>
   <tr><td><strong>Customer Service Agent</strong></td><td>Agentic AI</td>

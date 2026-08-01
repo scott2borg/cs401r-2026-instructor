@@ -118,20 +118,32 @@ Defects 37 and 38 are the same family as the `--query`-per-page bug from 2026-07
 1. **Labs 2→5 end-to-end run** — still never executed as one continuous pass through Feature Store → Athena → registry → deploy. **Not quota-blocked.** This is now the largest unclosed integration seam in the course, and with all seven labs written it is the top of the list. The Lab 5 reference trained locally via `models/churn/train_local.py`, which is the documented path.
 2. **Lab 4 CodePipeline** — never run. Unblocked: a GitHub repo exists. Needs a CodeStar connection and `pipeline.yaml` deployed.
 3. **Bedrock quotas still 0** — blocks Lab 3 Track B/C. Claude quotas are adjustable; embedding quotas are not and need a support case. **Unanswered: do all 30 student accounts need individual manual grants?** With no institutional lever, assume yes. Monitor: `TA Tools/bedrock_canary.py --watch`. Note that Lab 7 no longer depends on Track B/C being deployed, so this blocks Lab 3 only.
-4. **Starter-kit / lab contradiction on the churn window.** `Starter Kits/Lab 1/northstar-scenario-overview.md` says "30-day churn probability"; every lab says 90 days. **It was deliberately not edited** — it is already published and changing it mid-semester has its own cost. Lab 7 states the correction explicitly and the labs are authoritative. **Instructor decision needed:** patch the starter kit, or let the Lab 7 correction carry it.
-5. **The case's $140M churn figure does not reconcile with its own inputs.** 2.1M × 18% × $340 = $128.5M. Lab 7 turns this into a required reconciliation rather than papering over it, but the source document is still internally inconsistent.
-6. **`alarms.tf` verified but SNS topics are empty strings** — alarms fire to nothing until real topic ARNs are supplied. Unchanged from the last handoff.
-7. **A7's anomaly alarm cannot be demonstrated** inside a lab session (needs ~2 weeks of history; backfilled metrics are silently discarded). Defined and correct; just not showable.
-8. `_retired/` folders in two places — decide keep or purge. Neither is published; this is housekeeping, not risk.
-9. The vault copy of `northstar-ai-platform` under `Sample Solutions/` is **known-stale and gitignored**. Do not trust it; use the real repo.
+4. **`alarms.tf` verified but SNS topics are empty strings** — alarms fire to nothing until real topic ARNs are supplied. Unchanged from the last handoff.
+5. **A7's anomaly alarm cannot be demonstrated** inside a lab session (needs ~2 weeks of history; backfilled metrics are silently discarded). Defined and correct; just not showable.
+6. `_retired/` folders in two places — decide keep or purge. Neither is published; this is housekeeping, not risk.
+7. The vault copy of `northstar-ai-platform` under `Sample Solutions/` is **known-stale and gitignored**. Do not trust it; use the real repo.
+
+### Closed 2026-08-01 — case-document consistency pass
+
+Three source-document defects were fixed at the source rather than papered over in Lab 7. All course material now agrees.
+
+| Was | Now | Where it was wrong |
+|---|---|---|
+| Churn label "30-day" in the case | **90 days everywhere** | `northstar-scenario-overview.md`, `northstar-data-schema.md`, `upload_quiz_questions.py`, `pipeline/stage1_structure.py`, `pipeline/stage4_quizzes.py`, `Canvas LMS/canvas_builder.py`, `generate_presentations.py`, lecture outlines L01/L02/L07 and the L02 figure description |
+| `$140M` churn problem, non-derivable | **$128.5M**, with 2.1M × 18% × $340 shown in the case | `northstar-scenario-overview.md` |
+| `churn_label` "~15% positive rate" | **~21%** (measured 21.2%) | `northstar-data-schema.md` |
+
+The base-rate fix matters more than it looks: at 15% the Recall@10% ceiling computes to ~0.65 rather than 0.48, which would have made the Lab 6 SLO and the Lab 7 feasibility analysis both wrong in the same direction.
+
+Remaining 30-day references in the corpus are all legitimate and were deliberately left alone: the return-policy window in the RAG documents, the `purchase_frequency_30d` / `spend_30d` feature lookbacks, S3 lifecycle rules, and the GDPR Article 22 response deadline. **The forward-looking 90-day label and the backward-looking 30-day features sit in the same feature table**, which is now called out explicitly in Lab 7 as the likely source of student confusion.
 
 ---
 
 ## Suggested first moves for the next session
 
 1. **Run Labs 2→5 end to end.** It is not quota-blocked, it is the only unclosed seam that can still surprise 30 students simultaneously, and every lab it touches is now frozen. Budget one session and tear down.
-2. Decide thread 4 (starter-kit churn window). It is a one-line edit or a one-line decision; leaving it open guarantees a support burst in Lab 7 week.
-3. Supply real SNS topic ARNs to `alarms.tf` (thread 6) — small, and it removes a "verified but inert" item from the list.
+2. **Regenerate the downstream Canvas and presentation artifacts.** The case-consistency pass edited generator *sources* (`upload_quiz_questions.py`, `pipeline/stage*.py`, `canvas_builder.py`, `generate_presentations.py`). Any already-built decks, quiz banks or Canvas pages still carry the old 30-day text and must be rebuilt and re-uploaded.
+3. Supply real SNS topic ARNs to `alarms.tf` (thread 4) — small, and it removes a "verified but inert" item from the list.
 4. Lab 4 CodePipeline (thread 2) if there is session budget left.
 
 ---

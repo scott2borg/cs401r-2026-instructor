@@ -241,7 +241,7 @@ Acknowledged limitations that a strong answer names: Hawthorne effect on the mar
 
 **Time to observe outcome (field 9) is 90 days**, because that is the label Lab 2 derives. If the student's measurement window (field 8) is shorter than 90 days, the methodology reports outcomes that have not occurred. Full credit requires either a window ≥ 90 days or an explicit statement of how the gap is handled (leading indicators, interim readouts labelled non-decision-quality).
 
-**Any submission using a 30-day churn window loses the 5-point consistency item.** The 30-day figure appears in older case material and is superseded; the spec says so explicitly in Prerequisites. This is the single most likely error in Task 4 and it will be common — the stale text is still in the starter-kit scenario overview.
+**Any submission using a 30-day churn window loses the 5-point consistency item.** Every source now says 90 days — case overview, data schema, Labs 2, 3, 6 and 7 — so a 30-day answer is a student error rather than a documentation trap. The likely cause is conflating the forward-looking 90-day *label* with the backward-looking 30-day *features* (`purchase_frequency_30d`) that sit in the same table. Say so in the feedback; it is a genuine conceptual confusion worth correcting.
 
 Confidence level should be Medium. Almost no early-stage ML system has High confidence on business impact.
 
@@ -267,7 +267,9 @@ The 2026-07-06 version of this note is superseded. Defects found in the audit of
 | # | Defect in prior Lab 7 material | Resolution |
 |---|---|---|
 | 28 | Task 1 required the second system to be "your Track B/C choice from Lab 3" — Bedrock quotas are 0 on every student account, so most students have no Track B/C system | Second pyramid is now explicitly a design exercise; deployment not required |
-| 29 | Scorecard and methodology template used a **30-day** retention window; Lab 2 derives a **90-day** label and Lab 6's drift plan depends on it | Lab 7 standardised on 90 days; conflict flagged in Prerequisites |
+| 29 | Scorecard and methodology template used a **30-day** retention window; Lab 2 derives a **90-day** label and Lab 6's drift plan depends on it | **Fixed at source across the whole course** — scenario overview, data schema, quiz bank, Canvas builder, lecture outlines L01/L02/L07 |
+| 29a | `northstar-scenario-overview.md` headline of **$140M** did not reconcile with its own inputs | **Corrected to $128.5M** with the arithmetic shown in the case document |
+| 29b | `northstar-data-schema.md` claimed a **~15%** `churn_label` positive rate against a measured **21.2%** | Corrected to ~21%; a 15% base rate would put the Recall@10% ceiling at ~0.65 instead of 0.48 |
 | 30 | Methodology template listed **13** fields; rubric said "all 12 fields" | Template numbered 1–13; rubric corrected |
 | 31 | Prior optimization example was `ml.c5.2xlarge` — **processing quota is 0 by AWS default for every non-burstable instance**, so it cannot be executed | Replaced with Batch Transform and Serverless Inference, both quota-feasible |
 | 32 | Cost per 1,000 predictions of $0.011 was asserted, not derived, and predated any measured rate or usage | Derived: **$0.012**, from usage × Price List rates, with arithmetic shown |
@@ -280,11 +282,13 @@ The 2026-07-06 version of this note is superseded. Defects found in the audit of
 
 Defect 35 is the same family as the Lab 6 Recall@10% error (an SLO set above the model's ceiling), one layer up: a *business* target set above what the measured model can structurally deliver. It survived every prior review of this lab.
 
-### Unresolved — instructor decision required
+### Both source-document defects are now closed (2026-08-01)
 
-**`Starter Kits/Lab 1/northstar-scenario-overview.md` still says the churn model predicts "30-day churn probability."** The labs say 90 days and are authoritative, and Lab 7 states the correction explicitly. The starter kit was not edited, because it is already published to students and changing it mid-semester has its own cost. Decide: patch the starter kit, or let the Lab 7 correction carry it.
+**Churn window standardised on 90 days at source.** `northstar-scenario-overview.md` now states 90-day churn probability, `northstar-data-schema.md` describes the label as forward-looking over 90 days, and the quiz bank, Canvas builder and lecture outlines L01/L02/L07 were corrected to match. There is no longer any 30-day churn-label text anywhere in the course. The remaining 30-day references are all legitimate and unrelated: the return-policy window in the RAG corpus, `purchase_frequency_30d` and `spend_30d` feature lookbacks, and S3 lifecycle rules.
 
-**The case's $140M churn problem does not reconcile with its own inputs.** 2.1M × 18% × $340 = **$128.5M**. Accept either figure from students if the arithmetic is shown; the Lab 7 spec requires them to state which they use.
+**The $140M headline is now $128.5M and is derivable.** `northstar-scenario-overview.md` states the figure and shows the arithmetic (2.1M × 18% × $340). Students are no longer asked to reconcile it — they are expected to reproduce it. **A submission whose business math does not tie back to $128.5M has an arithmetic error, not a defensible alternative assumption.** This is a change from the prior grading posture; do not accept $140M.
+
+**Also corrected:** `northstar-data-schema.md` claimed a **~15%** positive rate for `churn_label`. The measured rate is **~21%** (21.2%), which is what Lab 2 states and what the Recall@10% ceiling of 0.48 is derived from. The schema doc now says ~21%. Any student analysis built on 15% will produce a recall ceiling near 0.65 and overstate achievable value by roughly a third.
 
 ---
 

@@ -56,7 +56,7 @@ slides_target: 16
 **Content:**
 **The Churn Prediction Problem:**
 - Input: 8 engineered tabular features (recency, frequency, monetary, engagement metrics)
-- Output: probability of churn in the next 30 days
+- Output: probability of churn in the next 90 days
 - Data: 250K customer records, 18 months of history, ~12% historical churn rate
 - Latency requirement: batch (nightly), not real-time
 
