@@ -1,6 +1,6 @@
 ---
-tags: [CS401R, lab-6, cost, blockers]
 created: 2026-07-30
+tags: [CS401R, lab-6, cost, blockers]
 status: cost model complete; two blockers confirmed in code, not yet fixed
 purpose: Close the "Model Monitor has never been costed" gap and record pre-flight defects found before the Lab 6 AWS run
 ---

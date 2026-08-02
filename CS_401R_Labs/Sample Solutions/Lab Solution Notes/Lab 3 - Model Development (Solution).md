@@ -15,19 +15,22 @@ total_points: 100
 
 ## Reference Run
 
-Track A was executed end to end on 2026-07-28 against account `711457211658`. The reference implementation is `models/churn/train_reference.py` in the live repo. These are the actual measured numbers.
+Track A was re-executed end to end on **2026-08-01** against account `711457211658`, as part of a continuous Labs 2→5 pass. The reference implementation is `models/churn/train_reference.py` in the live repo — the Athena path Task 1 requires. **These are the canonical numbers for the course.** They supersede the 2026-07-28 run (0.747 / 0.642 / +0.105 / 0.611 / 0.293), which the current Glue feature build no longer reproduces. `seed=42`, `test_size=0.30` in both runs, so this is not split noise.
 
 | Metric | Reference | Threshold | Margin |
 |---|---|---|---|
-| AUC-ROC | **0.747** | ≥ 0.72 | +0.027 |
-| Recency-only baseline AUC | **0.642** | — | — |
-| **Lift over baseline** | **+0.105** | ≥ 0.03 | +0.075 |
-| Precision @ top 10% | **0.611** | ≥ 0.50 | +0.111 |
-| Recall @ top 10% | **0.293** | ≥ 0.25 | +0.043 |
+| AUC-ROC | **0.7276** | ≥ 0.72 | +0.0076 |
+| Recency-only baseline AUC | **0.6298** | — | — |
+| **Lift over baseline** | **+0.0978** | ≥ 0.03 | +0.0678 |
+| Precision @ top 10% | **0.6944** | ≥ 0.50 | +0.1944 |
+| Recall @ top 10% | **0.3333** | ≥ 0.25 | +0.0833 |
 | `scale_pos_weight` | 3.828 | derived | churn rate 20.75% |
 | Train / test | 840 / 360 | — | 1,200 customers |
+| Model package | **v2** | — | `northstar-churn-models` |
 
-Every threshold clears with margin, but none trivially. A student who skips feature engineering and trains on recency alone lands at 0.642 and fails the AUC gate outright.
+Every threshold clears, but **the AUC gate now clears by only +0.0076.** That is a real change in grading posture: at the 2026-07-28 figures a merely-adequate student model comfortably passed; at 0.7276 the reference itself is close to the 0.72 line. Expect genuine near-misses and grade the method, not the third decimal. A student who skips feature engineering and trains on recency alone lands at 0.6298 and fails the AUC gate outright.
+
+**Do not quote any other figure as the reference.** Four inconsistent sets were in circulation before 2026-08-01; the Athena path above is the only one verified end to end and is the single source of truth.
 
 **Feature importance (gain), reference run:**
 
@@ -40,13 +43,15 @@ total_lifetime_value       3.68     customer_tenure_days     2.87
 purchase_frequency_30d     3.68
 ```
 
-Recency leads but does not dominate — the spread across the other ten features is what produces the +0.105 lift. A student whose importance plot shows recency at 80%+ has probably leaked it or dropped the behavioural features.
+Recency leads but does not dominate — the spread across the other ten features is what produces the +0.0978 lift. A student whose importance plot shows recency at 80%+ has probably leaked it or dropped the behavioural features.
 
 ---
 
 ## The Platinum Finding — read this before grading Task 1
 
 The reference run's slice evaluation:
+
+> **Not re-measured on 2026-08-01.** The slice table below is from the 2026-07-28 run. `train_reference.py` still emits per-tier AUC, but the 2026-08-01 pass did not capture the slice output before teardown, and the infrastructure is now destroyed. The *finding* — Platinum is worse than random on ~3 positive examples — is structural and will survive any re-run. The *numbers* are pending re-measurement. Do not present them to students as current.
 
 | Tier | n | Churn rate | AUC |
 |---|---|---|---|
@@ -55,7 +60,7 @@ The reference run's slice evaluation:
 | Silver | 142 | 22.5% | 0.688 |
 | **Platinum** | **41** | **7.3%** | **0.430** |
 
-**The model is worse than random on Platinum customers** — the most valuable segment NorthStar has. An aggregate AUC of 0.747 hides it completely.
+**The model is worse than random on Platinum customers** — the most valuable segment NorthStar has. An aggregate AUC in the 0.73–0.75 range hides it completely.
 
 This is not a defect to fix before shipping the lab. It is the most valuable thing in Lab 3, and it is why Task 1 awards 5 points for slice evaluation.
 
@@ -63,7 +68,7 @@ The cause is visible in the table: Platinum has 41 test customers at a 7.3% chur
 
 **Full credit:** the student reports per-tier numbers, flags Platinum explicitly, and reasons about the cause — small sample, class imbalance differing by slice, possibly needing a separate model or a business rule for high-value accounts. Naming the cause matters more than fixing it.
 
-**Not full credit:** aggregate AUC only, or slices reported without comment. A student who presents 0.747 as "the model works" has missed the lesson; if they propose deploying it to drive Platinum retention, call that out directly in feedback.
+**Not full credit:** aggregate AUC only, or slices reported without comment. A student who presents a healthy aggregate AUC as "the model works" has missed the lesson; if they propose deploying it to drive Platinum retention, call that out directly in feedback.
 
 Expect the exact Platinum AUC to vary between student runs — small n makes it unstable. Any value near or below 0.5 is the expected result. Grade the analysis, not the number.
 
@@ -86,13 +91,13 @@ An earlier skeleton draft used `write_time >= (SELECT MAX(write_time) ...)`, whi
 
 ### Meets AUC, precision, recall thresholds (8 pts)
 
-Verify against their reported held-out split. Reference: 0.747 / 0.611 / 0.293.
+Verify against their reported held-out split. Reference: **0.7276 / 0.6944 / 0.3333**.
 
 Note the **recall ceiling**: with ~21% positives, targeting the top 10% caps recall near 0.48. A student reporting recall@10% of 0.9 has computed it wrong — most likely over the full set rather than the top decile.
 
 ### Beats the recency-only baseline by ≥ 0.03 AUC (7 pts)
 
-Both AUCs must be reported and the lift computed. Reference lift is **+0.105**, so the bar is not tight — but it is only clearable if the behavioural features are doing real work.
+Both AUCs must be reported and the lift computed. Reference lift is **+0.0978**, so the bar is not tight — but it is only clearable if the behavioural features are doing real work.
 
 **This is the gate that matters.** A model that cannot beat "days since last purchase" has not earned deployment, and Lab 4's CI pipeline enforces the same threshold. Award 0 if the baseline was never trained, even if the full model's AUC is excellent — the comparison is the deliverable, not the number.
 
@@ -102,10 +107,10 @@ Both AUCs must be reported and the lift computed. Reference lift is **+0.105**, 
 
 ### Model Registry, `PendingManualApproval` (5 pts)
 
-**Never auto-approved.** The reference run produced version 1 in group `northstar-churn-models` with status `PendingManualApproval` and metadata attached:
+**Never auto-approved.** The reference run produced version **2** in group `northstar-churn-models` with status `PendingManualApproval` and metadata attached:
 
 ```
-auc_roc 0.747 | baseline_auc_roc 0.642 | auc_lift 0.1051 | feature_count 11
+auc_roc 0.7276 | baseline_auc_roc 0.6298 | auc_lift 0.0978 | feature_count 11
 ```
 
 Metadata is not required for the points, but a student who attached metrics to the model package has understood why a registry exists. Note it positively.
@@ -154,7 +159,7 @@ TC-006 (prompt injection) is a bonus. Do not deduct if skipped; it is not one of
 
 ## Task 3 — Design Justification (20 points)
 
-The **feature-value analysis (6 pts)** is where students most often coast. It requires reporting the baseline against the full model with numbers. "Feature engineering improved the model" earns 2 of 6. "Recency-only scored 0.642, the full model 0.747, a lift of +0.105, driven mainly by `purchase_frequency_180d` and `total_spend_90d`" earns 6.
+The **feature-value analysis (6 pts)** is where students most often coast. It requires reporting the baseline against the full model with numbers. "Feature engineering improved the model" earns 2 of 6. "Recency-only scored 0.6298, the full model 0.7276, a lift of +0.0978, driven mainly by `purchase_frequency_180d` and `total_spend_90d`" earns 6.
 
 Award credit for honesty. A student whose lift was small and who says so, with a diagnosis, has done better work than one who hides it.
 
@@ -253,8 +258,8 @@ ls docs/ notebooks/    # RAGAS scores, or the five agent traces
 | Task | Max | Automated? | Notes |
 |---|---|---|---|
 | 1 — Athena offline store | 5 | Partial | Read the data-loading code |
-| 1 — Meets thresholds | 8 | Yes | Reference 0.747 / 0.611 / 0.293 |
-| 1 — Beats baseline ≥ 0.03 | 7 | Yes | Reference +0.105. 0 if no baseline |
+| 1 — Meets thresholds | 8 | Yes | Reference 0.7276 / 0.6944 / 0.3333 |
+| 1 — Beats baseline ≥ 0.03 | 7 | Yes | Reference +0.0978. 0 if no baseline |
 | 1 — Experiments (≥3 trials) | 5 | Yes | |
 | 1 — Registry PendingManualApproval | 5 | Yes | 0 if auto-approved |
 | 1 — Slice evaluation | 5 | No | **Platinum must be flagged** |

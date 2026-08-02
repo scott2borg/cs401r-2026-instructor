@@ -109,7 +109,9 @@ Train a churn model on the Lab 2 Feature Store data.
 | Recall @ top 10% | | ≥ 0.25 |
 | **AUC lift over recency-only baseline** | | **≥ +0.03** |
 
-The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it. Reference implementation measured **0.736 full vs 0.667 recency-only, a lift of +0.069** — so the threshold is comfortably achievable, but only if your feature set is doing real work.
+The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it. Reference implementation measured **0.7276 full vs 0.6298 recency-only, a lift of +0.0978** — so the threshold is comfortably achievable, but only if your feature set is doing real work.
+
+> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-01 (registry version v2), `seed=42`, `test_size=0.30`. The local CSV path (`train_local.py`) builds features differently and lands at AUC 0.7145 / baseline 0.6727. Do not mix the two. If you see older figures around 0.747, they are superseded.
 
 Note the recall ceiling: with ~21% positives, targeting the top 10% of customers caps recall at about 48%. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
 

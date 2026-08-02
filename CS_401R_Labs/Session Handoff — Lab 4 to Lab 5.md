@@ -6,6 +6,8 @@ purpose: Warm-start context for a fresh session beginning Lab 5 work
 
 # Session Handoff — Lab 4 → Lab 5
 
+> **⚠ Superseded 2026-08-01 (defect 41).** The Lab 3 reference metrics quoted in this note (AUC 0.747 / baseline 0.642 / lift +0.105 / P@10% 0.611 / R@10% 0.293) do **not** reproduce. The canonical figures are now **AUC 0.7276 / baseline 0.6298 / lift +0.0978 / P@10% 0.6944 / R@10% 0.3333** — `train_reference.py`, Athena path, measured end to end 2026-08-01, registry v2. See [[Session Handoff — Labs 2-5 End-to-End Run]]. This note is retained as a historical record; do not quote its metrics.
+
 > **How to use this:** Reference this note as the first message in a new session before starting Lab 5. It captures what Labs 1–4 landed, what Lab 5 inherits, and the open threads — including two live external dependencies.
 
 ---

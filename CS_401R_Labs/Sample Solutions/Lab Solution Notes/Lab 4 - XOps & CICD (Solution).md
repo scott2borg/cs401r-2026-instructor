@@ -25,13 +25,13 @@ PRE_BUILD        SUCCEEDED    14s     test_data 26 passed · test_features 18 pa
 BUILD            SUCCEEDED     1s     quality gate 4/4 PASS
 ```
 
-Passing gate output, using the verified Lab 3 Track A metrics:
+Passing gate output, using the verified Lab 3 Track A metrics (`train_reference.py`, 2026-08-01, registry v2):
 
 ```
-auc_roc            0.7470   (min: 0.72)  PASS
-precision_top10    0.6110   (min: 0.5)   PASS
-recall_top10       0.2930   (min: 0.25)  PASS
-auc lift          +0.1050   (min: 0.03)  PASS
+auc_roc            0.7276   (min: 0.72)  PASS
+precision_top10    0.6944   (min: 0.5)   PASS
+recall_top10       0.3333   (min: 0.25)  PASS
+auc lift          +0.0978   (min: 0.03)  PASS
 ```
 
 **The blocking case, which is the point of the lab.** A second build was run with a model scoring AUC 0.800 — *better* than the reference — but only +0.005 over the recency baseline:

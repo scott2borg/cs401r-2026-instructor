@@ -108,14 +108,14 @@ This is a real inconsistency in the NorthStar case material, not a trick.
 | Source | Figure | Population and window |
 |---|---|---|
 | Case overview | churn **18% per year** | 2.1M active customers, annual |
-| Training dataset | positive rate **21.2%** | 1,200 sampled customers, 90-day label |
+| Training dataset | positive rate **20.75%** | 1,200 sampled customers, 90-day label |
 
-A 21.2% rate per 90 days compounds to roughly **61% per year**, which is not 18%. The two figures describe different populations over different windows, and the sampled dataset is not a random draw from the customer base.
+A 20.75% rate per 90 days compounds to roughly **61% per year**, which is not 18%. The two figures describe different populations over different windows, and the sampled dataset is not a random draw from the customer base.
 
 **What this means for your work:**
 
 - **Business math** (value, ROI, lost LTV, the CDO's target) uses the case figures: 2.1M active customers, 18% annual churn, $340 lifetime value — which multiply to the case's stated $128.5M annual churn problem. That headline number is reproducible, and your analysis should reconcile to it.
-- **Model math** (recall, precision, lift, achievable coverage) uses the measured dataset figures: 21.2% base rate, Recall@10% of 0.293 against a ceiling near 0.48.
+- **Model math** (recall, precision, lift, achievable coverage) uses the measured dataset figures: 20.75% base rate, Recall@10% of **0.3333** against a ceiling near 0.48.
 - **Never multiply one by the other without saying so.** Any place your analysis crosses between them, state the bridging assumption in one sentence. Task 2 is graded partly on whether you did.
 
 ### 4. The churn label is 90 days
@@ -128,14 +128,16 @@ Watch the distinction between the *label* window and the *feature* windows, beca
 
 You are not starting from a blank page. These are real, from the reference implementation, and you may use them directly. If your own Labs 2–6 produced different numbers, use yours and say so.
 
-**Model performance (Lab 3, re-verified Lab 5)**
+**Model performance** — `models/churn/train_reference.py` (the Athena path), measured end to end on 2026-08-01, model-registry version **v2**, `seed=42`, `test_size=0.30`. These supersede every earlier figure in circulation (0.747 / 0.642 / 0.293 and 0.736 / 0.667); those came from a feature-build no current code path reproduces.
 
 | Quantity | Value |
 |---|---|
-| AUC-ROC | **0.747** |
-| Recency-only baseline AUC | 0.642 |
-| Recall@10% | **0.293** |
-| Recall@10% theoretical ceiling at 21.2% base rate | **~0.48** |
+| AUC-ROC | **0.7276** |
+| Recency-only baseline AUC | 0.6298 |
+| AUC lift over baseline | **+0.0978** |
+| Precision@10% | **0.6944** |
+| Recall@10% | **0.3333** |
+| Recall@10% theoretical ceiling at 20.75% base rate | **~0.48** |
 | Lab 4 promotion gate / Lab 6 SLO | Recall@10% ≥ 0.25 |
 | Inference latency p95 | **~4.1 ms** |
 | Cold-start latency, first call after deploy | ~24 ms |
@@ -206,7 +208,7 @@ Build the four-layer metric pyramid for **two** NorthStar AI systems:
 
 | Layer | Description | Example (Churn) |
 |-------|-------------|-----------------|
-| Model / System | Technical performance | AUC-ROC 0.747, p95 latency 4.1 ms |
+| Model / System | Technical performance | AUC-ROC 0.7276, p95 latency 4.1 ms |
 | Model Output | What the model emits | Score distribution, daily alert volume |
 | User Experience | How people interact with the output | Offer acceptance rate, campaign click-through |
 | Business Outcome | Revenue or cost impact | 90-day retention rate, prevented churn revenue |
@@ -408,7 +410,7 @@ Roughly 300 words in Section 5.
 5. **The Price List API returns one pricing tier and does not tell you it is the wrong one.** `CW:MetricMonitorUsage` returns $0.02 (the over-1M-metrics tier) when your actual rate is $0.30. Always read the `description` field.
 6. **Bedrock output-token prices are absent from the Price List API** in us-east-1, and its Claude model coverage is stale. Use the pricing page and cite the date.
 7. **Failed jobs bill.** The reference account spent more instance time on one analyzer run that ran out of memory (13 min 42 s) than on the one that succeeded (5 min 45 s). Cost models built from successful runs are optimistic by construction.
-8. **The 18%/year case figure and the 21.2% dataset figure are not the same quantity.** Different population, different window. Mixing them produces confident nonsense.
+8. **The 18%/year case figure and the 20.75% dataset figure are not the same quantity.** Different population, different window. Mixing them produces confident nonsense.
 9. **The churn label looks forward 90 days; several features look back 30.** They sit in the same feature table and are easy to conflate. Any measurement window shorter than 90 days reports outcomes that have not happened yet.
 10. **`ModelLatency` is in microseconds** (carried from Lab 6). If you cite latency in a cost or SLO context, cite the unit.
 11. **A real-time endpoint bills 24×7 for a weekly batch workload.** Both Lab 5 and Lab 6 built one, deliberately, because they were teaching deployment and monitoring. Whether that is the right architecture for *this* workload is a Task 2d question, and it has a large answer.

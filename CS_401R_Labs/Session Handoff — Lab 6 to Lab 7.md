@@ -1,11 +1,13 @@
 ---
-tags: [CS401R, handoff, lab-7]
 created: 2026-07-31
+tags: [CS401R, handoff, lab-7]
 supersedes: "Session Handoff — Lab 5 to Lab 6"
 purpose: Warm-start context for a fresh session. Labs 5 and 6 are closed; Lab 7 is next.
 ---
 
 # Session Handoff — Lab 6 → Lab 7
+
+> **⚠ Superseded 2026-08-01 (defect 41).** The Lab 3 reference metrics quoted in this note (AUC 0.747 / baseline 0.642 / lift +0.105 / P@10% 0.611 / R@10% 0.293) do **not** reproduce. The canonical figures are now **AUC 0.7276 / baseline 0.6298 / lift +0.0978 / P@10% 0.6944 / R@10% 0.3333** — `train_reference.py`, Athena path, measured end to end 2026-08-01, registry v2. See [[Session Handoff — Labs 2-5 End-to-End Run]]. This note is retained as a historical record; do not quote its metrics.
 
 > **Read this before starting Lab 7.** It supersedes [[Session Handoff — Lab 5 to Lab 6]], which contains at least one claim now known to be false (see *Corrections* below).
 

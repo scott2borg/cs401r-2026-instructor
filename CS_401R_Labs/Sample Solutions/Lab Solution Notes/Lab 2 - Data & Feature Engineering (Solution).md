@@ -23,7 +23,7 @@ Lab 2 adds the complexity Lab 1 deliberately stripped out, then builds the data 
 | NAT Gateway | One, in the public subnet, with an Elastic IP | Places NAT in the private subnet — it must be public to reach the IGW |
 | SageMaker Domain | Private subnet, `app_network_access_type = VpcOnly` | Leaves it in the public subnet, or forgets `VpcOnly` |
 | IAM roles | 3: `MLEngineer`, `DataEngineer`, `ModelMonitor` | DataEngineer scoped to `raw/`+`processed/` only — breaks Task 3 |
-| S3 lifecycle | 4 rules on `raw/`, `processed/`, `features/` | Applies one blanket rule to the whole bucket |
+| S3 lifecycle | 5 rules on `raw/`, `processed/`, `features/`, `datacapture/` | Applies one blanket rule to the whole bucket; or omits `expire-datacapture`, leaving Lab 5/6 capture data unbounded |
 | Glue | Catalog DB, crawler, 2 ETL jobs, NETWORK connection | Jobs run outside the VPC (works, but violates the architecture) |
 | Feature Store | 8 features, `event_time` **Fractional**, online + offline | Declares `event_time` as `String` — records silently never land |
 | **Grain** | `processed/` is transaction level; `features/` is customer level | **Deduplicates on `customer_id`** — the single most damaging error |
@@ -102,7 +102,7 @@ Do **not** deduct for the extra permissions Glue genuinely requires (`glue:GetCo
 
 ### S3 lifecycle rules (4 pts)
 
-**Pass criteria:** `aws s3api get-bucket-lifecycle-configuration` returns exactly 4 rules:
+**Pass criteria:** `aws s3api get-bucket-lifecycle-configuration` returns exactly **5** rules:
 
 | Rule ID | Prefix | Action |
 |---|---|---|
@@ -110,8 +110,9 @@ Do **not** deduct for the extra permissions Glue genuinely requires (`glue:GetCo
 | `expire-raw-versions` | `raw/` | expire noncurrent after 30 days |
 | `expire-processed-versions` | `processed/` | expire noncurrent after 30 days |
 | `expire-feature-versions` | `features/` | expire noncurrent after 60 days |
+| `expire-datacapture` | `datacapture/` | expire current after 7 days |
 
-**Grading notes:** 1 point per correct rule. A single blanket rule with no prefix filter earns 1/4 — it would expire `artifacts/` too, deleting trained models.
+**Grading notes:** The 4 pts are for the rule set, not one point per rule. `expire-datacapture` is the one students most often miss — the lab text said "4 rules" before 2026-08-01, so **do not deduct from submissions graded against the older text**; note it in feedback instead. It matters: `datacapture/` is the only prefix in the platform that grows without bound, and Lab 5/6 fill it. A single blanket rule with no prefix filter earns 1/4 — it would expire `artifacts/` too, deleting trained models.
 
 ### LocalStack validation (3 pts)
 
@@ -132,7 +133,7 @@ Do **not** deduct for the extra permissions Glue genuinely requires (`glue:GetCo
 - [ ] Crawler run completed with `LastCrawl.Status: SUCCEEDED`
 - [ ] `aws glue get-table` returns a table with all 9 columns
 
-**Grading notes:** The crawler names the table after the S3 prefix, so it will be `customers`, not `raw_customers`, unless the student overrode it. Accept either — the spec's `raw_customers` was aspirational; the reference implementation parameterizes it via `var.raw_table_name`. Do not deduct for the name.
+**Grading notes:** The crawler names the table after the S3 prefix, so it is **`customers`**. As of 2026-08-01 the lab text says `customers` throughout and `var.raw_table_name` defaults to `customers`, so this is now the expected answer rather than a tolerated deviation. Older submissions that used `raw_customers` (via a `TablePrefix` override) are still correct — accept either and do not deduct for the name.
 
 ### Transform script correctness (12 pts)
 

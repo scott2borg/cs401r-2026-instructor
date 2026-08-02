@@ -875,13 +875,13 @@ Lifecycle rules *(new in Lab 2)*:
 **Crawler — `northstar-dev-raw-crawler`** *(new in Lab 2)*
 - Role: `northstar-dev-DataEngineer`
 - Target: S3 `raw/customers/` prefix
-- Output: table `raw_customers` in `northstar_dev` database
+- Output: table `customers` in `northstar_dev` database — the crawler names the table after the S3 prefix (`raw/customers/`) and no `TablePrefix` is set, so it is **`customers`, not `raw_customers`**
 - Schedule: on-demand (run manually or trigger from ingestion)
 
 **ETL Job — `northstar-dev-transform`** *(new in Lab 2)*
 - Type: Glue Spark (Python shell for smaller datasets)
 - Role: `northstar-dev-DataEngineer`
-- Source: `northstar_dev.raw_customers` (via Glue catalog)
+- Source: `northstar_dev.customers` (via Glue catalog)
 - Transforms: type casting, null imputation, deduplication, timestamp normalization
 - Sink: `processed/customers/` in S3 as Parquet
 
@@ -916,8 +916,8 @@ Draw this as two layers: infrastructure (VPC/network) and data flow (S3/Glue/Fea
 |------|----|-----------|-------|
 | Source data (external) | S3 `raw/customers/` | → | CSV upload |
 | Raw Crawler | S3 `raw/customers/` | → | scans schema |
-| Raw Crawler | Glue Catalog `raw_customers` | → | registers table |
-| Transform Job | Glue Catalog `raw_customers` | → | reads |
+| Raw Crawler | Glue Catalog `customers` | → | registers table |
+| Transform Job | Glue Catalog `customers` | → | reads |
 | Transform Job | S3 `processed/customers/` | → | writes Parquet |
 | Feature Engineer Job | S3 `processed/customers/` | → | reads |
 | Feature Engineer Job | S3 `features/customers/` | → | writes Parquet |
@@ -1036,7 +1036,7 @@ make local-validate 2>&1 | tee docs/lab2-localstack-output.txt
 |------|--------|---------------|
 | Private subnet + NAT Gateway created; SageMaker Domain moved to private subnet | 10 | Console: Domain InService, subnet ID matches `northstar-dev-private-1`; NAT Gateway Available |
 | All 3 IAM roles exist with correct trust and policies | 8 | `aws iam list-roles` shows all 3; `iam:SimulatePrincipalPolicy` confirms DataEngineer cannot **write** `artifacts/` (read on `artifacts/glue/` is expected — Glue fetches job scripts there), ModelMonitor cannot write S3 |
-| S3 lifecycle rules applied | 4 | `aws s3api get-bucket-lifecycle-configuration` returns all 4 rules |
+| S3 lifecycle rules applied | 4 | `aws s3api get-bucket-lifecycle-configuration` returns all 5 rules: `expire-raw-data`, `expire-raw-versions`, `expire-processed-versions`, `expire-feature-versions`, `expire-datacapture` |
 | LocalStack validation updated and passing | 3 | `docs/lab2-localstack-output.txt` shows 3 IAM roles; VPC exists (NAT skipped) |
 
 ---
@@ -1121,7 +1121,7 @@ aws glue start-crawler --name northstar-dev-raw-crawler
 aws glue get-crawler --name northstar-dev-raw-crawler --query 'Crawler.State'
 
 # Verify the table was created
-aws glue get-table --database-name northstar_dev --name raw_customers
+aws glue get-table --database-name northstar_dev --name customers
 
 # Run the transform job
 aws glue start-job-run --job-name northstar-dev-transform
@@ -1137,7 +1137,7 @@ aws s3 ls s3://northstar-dev-data-ACCOUNT_ID/processed/customers/ --recursive
 
 | Item | Points | Pass Criteria |
 |------|--------|---------------|
-| Glue catalog database and `raw_customers` table exist after crawler run | 6 | `aws glue get-table --database-name northstar_dev --name raw_customers` returns schema |
+| Glue catalog database and `customers` table exist after crawler run | 6 | `aws glue get-table --database-name northstar_dev --name customers` returns schema |
 | Transform script correctly casts types, imputes nulls, deduplicates | 12 | `verify-lab2.sh` runs assertions against `processed/customers/` output: correct Parquet schema, 0 null `customer_id` rows, no duplicate `customer_id` rows |
 | `modules/glue/` Terraform resources applied cleanly | 4 | Module present in repo; `terraform apply` creates crawler and job with 0 errors |
 | Transform job completes with SUCCEEDED status | 3 | `aws glue get-job-run` returns `JobRunState: SUCCEEDED` |
@@ -1468,7 +1468,9 @@ Train a churn model on the Lab 2 Feature Store data.
 | Recall @ top 10% | | ≥ 0.25 |
 | **AUC lift over recency-only baseline** | | **≥ +0.03** |
 
-The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it. Reference implementation measured **0.736 full vs 0.667 recency-only, a lift of +0.069** — so the threshold is comfortably achievable, but only if your feature set is doing real work.
+The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it. Reference implementation measured **0.7276 full vs 0.6298 recency-only, a lift of +0.0978** — so the threshold is comfortably achievable, but only if your feature set is doing real work.
+
+> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-01 (registry version v2), `seed=42`, `test_size=0.30`. The local CSV path (`train_local.py`) builds features differently and lands at AUC 0.7145 / baseline 0.6727. Do not mix the two. If you see older figures around 0.747, they are superseded.
 
 Note the recall ceiling: with ~21% positives, targeting the top 10% of customers caps recall at about 48%. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
 
@@ -2281,7 +2283,7 @@ Define SLOs for the NorthStar churn prediction model in `docs/lab6-runbook.md`.
 
 Fill in the Error Budget (in minutes/month or events/month) and the Deployment Freeze Trigger for each SLO.
 
-> **Why the prediction-quality target is 0.25 and not something rounder.** With roughly 21% positives in the population, scoring only the top 10% caps achievable recall near **0.48** — you cannot retrieve more churners than fit in the decile you are allowed to contact. The Lab 3 reference model achieves **0.293**, and Lab 4's promotion gate is **≥ 0.25**. Setting the SLO above the gate that let the model ship would put it in breach on the day it launched. An SLO your system fails at launch is not a target; it is a broken alarm you will learn to ignore.
+> **Why the prediction-quality target is 0.25 and not something rounder.** With roughly 21% positives in the population, scoring only the top 10% caps achievable recall near **0.48** — you cannot retrieve more churners than fit in the decile you are allowed to contact. The Lab 3 reference model achieves **0.3333** (`train_reference.py`, measured 2026-08-01), and Lab 4's promotion gate is **≥ 0.25**. Setting the SLO above the gate that let the model ship would put it in breach on the day it launched. An SLO your system fails at launch is not a target; it is a broken alarm you will learn to ignore.
 
 > **Why the latency SLO is 20 ms while the Task 1 alert fires at 200 ms.** These are different numbers doing different jobs, and conflating them is the most common SLO mistake in industry. An **SLO** is a promise measured over a month and spent down as an error budget. An **alert threshold** is the point at which you wake a human. Measured steady-state p95 on this endpoint is ~4.15 ms, so a 200 ms SLO would be met 48x over — free, unbreachable, and it would teach you nothing. At 20 ms you keep a healthy ~5x margin, but the ~24,000 µs cold start on every deployment *does* breach it. That is the intended lesson: your own deploys consume your error budget, which is precisely why error budgets govern deployment freezes.
 
@@ -2490,14 +2492,14 @@ This is a real inconsistency in the NorthStar case material, not a trick.
 | Source | Figure | Population and window |
 |---|---|---|
 | Case overview | churn **18% per year** | 2.1M active customers, annual |
-| Training dataset | positive rate **21.2%** | 1,200 sampled customers, 90-day label |
+| Training dataset | positive rate **20.75%** | 1,200 sampled customers, 90-day label |
 
-A 21.2% rate per 90 days compounds to roughly **61% per year**, which is not 18%. The two figures describe different populations over different windows, and the sampled dataset is not a random draw from the customer base.
+A 20.75% rate per 90 days compounds to roughly **61% per year**, which is not 18%. The two figures describe different populations over different windows, and the sampled dataset is not a random draw from the customer base.
 
 **What this means for your work:**
 
 - **Business math** (value, ROI, lost LTV, the CDO's target) uses the case figures: 2.1M active customers, 18% annual churn, $340 lifetime value — which multiply to the case's stated $128.5M annual churn problem. That headline number is reproducible, and your analysis should reconcile to it.
-- **Model math** (recall, precision, lift, achievable coverage) uses the measured dataset figures: 21.2% base rate, Recall@10% of 0.293 against a ceiling near 0.48.
+- **Model math** (recall, precision, lift, achievable coverage) uses the measured dataset figures: 20.75% base rate, Recall@10% of **0.3333** against a ceiling near 0.48.
 - **Never multiply one by the other without saying so.** Any place your analysis crosses between them, state the bridging assumption in one sentence. Task 2 is graded partly on whether you did.
 
 ### 4. The churn label is 90 days
@@ -2510,14 +2512,16 @@ Watch the distinction between the *label* window and the *feature* windows, beca
 
 You are not starting from a blank page. These are real, from the reference implementation, and you may use them directly. If your own Labs 2–6 produced different numbers, use yours and say so.
 
-**Model performance (Lab 3, re-verified Lab 5)**
+**Model performance** — `models/churn/train_reference.py` (the Athena path), measured end to end on 2026-08-01, model-registry version **v2**, `seed=42`, `test_size=0.30`. These supersede every earlier figure in circulation (0.747 / 0.642 / 0.293 and 0.736 / 0.667); those came from a feature-build no current code path reproduces.
 
 | Quantity | Value |
 |---|---|
-| AUC-ROC | **0.747** |
-| Recency-only baseline AUC | 0.642 |
-| Recall@10% | **0.293** |
-| Recall@10% theoretical ceiling at 21.2% base rate | **~0.48** |
+| AUC-ROC | **0.7276** |
+| Recency-only baseline AUC | 0.6298 |
+| AUC lift over baseline | **+0.0978** |
+| Precision@10% | **0.6944** |
+| Recall@10% | **0.3333** |
+| Recall@10% theoretical ceiling at 20.75% base rate | **~0.48** |
 | Lab 4 promotion gate / Lab 6 SLO | Recall@10% ≥ 0.25 |
 | Inference latency p95 | **~4.1 ms** |
 | Cold-start latency, first call after deploy | ~24 ms |
@@ -2588,7 +2592,7 @@ Build the four-layer metric pyramid for **two** NorthStar AI systems:
 
 | Layer | Description | Example (Churn) |
 |-------|-------------|-----------------|
-| Model / System | Technical performance | AUC-ROC 0.747, p95 latency 4.1 ms |
+| Model / System | Technical performance | AUC-ROC 0.7276, p95 latency 4.1 ms |
 | Model Output | What the model emits | Score distribution, daily alert volume |
 | User Experience | How people interact with the output | Offer acceptance rate, campaign click-through |
 | Business Outcome | Revenue or cost impact | 90-day retention rate, prevented churn revenue |
@@ -2790,7 +2794,7 @@ Roughly 300 words in Section 5.
 5. **The Price List API returns one pricing tier and does not tell you it is the wrong one.** `CW:MetricMonitorUsage` returns $0.02 (the over-1M-metrics tier) when your actual rate is $0.30. Always read the `description` field.
 6. **Bedrock output-token prices are absent from the Price List API** in us-east-1, and its Claude model coverage is stale. Use the pricing page and cite the date.
 7. **Failed jobs bill.** The reference account spent more instance time on one analyzer run that ran out of memory (13 min 42 s) than on the one that succeeded (5 min 45 s). Cost models built from successful runs are optimistic by construction.
-8. **The 18%/year case figure and the 21.2% dataset figure are not the same quantity.** Different population, different window. Mixing them produces confident nonsense.
+8. **The 18%/year case figure and the 20.75% dataset figure are not the same quantity.** Different population, different window. Mixing them produces confident nonsense.
 9. **The churn label looks forward 90 days; several features look back 30.** They sit in the same feature table and are easy to conflate. Any measurement window shorter than 90 days reports outcomes that have not happened yet.
 10. **`ModelLatency` is in microseconds** (carried from Lab 6). If you cite latency in a cost or SLO context, cite the unit.
 11. **A real-time endpoint bills 24×7 for a weekly batch workload.** Both Lab 5 and Lab 6 built one, deliberately, because they were teaching deployment and monitoring. Whether that is the right architecture for *this* workload is a Task 2d question, and it has a large answer.

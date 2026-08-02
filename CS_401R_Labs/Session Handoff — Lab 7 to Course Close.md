@@ -1,11 +1,13 @@
 ---
-tags: [CS401R, handoff, course-close]
 created: 2026-08-01
+tags: [CS401R, handoff, course-close]
 supersedes: "Session Handoff — Lab 6 to Lab 7"
 purpose: Warm-start context for a fresh session. All seven labs are specified. What remains is integration, not authoring.
 ---
 
 # Session Handoff — Lab 7 → Course Close
+
+> **⚠ Superseded 2026-08-01 (defect 41).** The Lab 3 reference metrics quoted in this note (AUC 0.747 / baseline 0.642 / lift +0.105 / P@10% 0.611 / R@10% 0.293) do **not** reproduce. The canonical figures are now **AUC 0.7276 / baseline 0.6298 / lift +0.0978 / P@10% 0.6944 / R@10% 0.3333** — `train_reference.py`, Athena path, measured end to end 2026-08-01, registry v2. See [[Session Handoff — Labs 2-5 End-to-End Run]]. This note is retained as a historical record; do not quote its metrics.
 
 > **Read this before the next session.** It supersedes [[Session Handoff — Lab 6 to Lab 7]]. Lab 7 is closed; the largest remaining risk is no longer content, it is the **Labs 2→5 end-to-end run**, which has still never been executed.
 

@@ -169,25 +169,27 @@ Both void SLOs must be replaced by a batch-completion SLO: *scores present in S3
 
 ### The feasibility arithmetic (10 pts — the highest-value item in the lab)
 
+> **Metric provenance (updated 2026-08-01).** All model figures below come from `models/churn/train_reference.py` — the Athena path Lab 3 Task 1 requires — measured end to end on 2026-08-01, registry v2: AUC **0.7276**, baseline **0.6298**, lift **+0.0978**, P@10% **0.6944**, R@10% **0.3333**. The previously published 0.293 recall came from a feature-build no current code path reproduces. **The conclusion is unchanged — the target is still unreachable** — but the arithmetic below was re-derived, and Task 3 grades arithmetic. Accept a student's own numbers where they show their measured recall.
+
 The CDO's target: churn 18% → 14% within one year, contacting only the top 10% of customers by risk.
 
 | Step | Value |
 |---|---|
 | Customers to retain for a 4pp move | 2.1M × 4% = **84,000/yr** |
 | Churners per year | 2.1M × 18% = **378,000** |
-| Churners reaching the contactable decile at measured Recall@10% = 0.293 | **110,754** |
-| **Required save rate on contacted customers** | 84,000 / 110,754 = **75.8%** |
+| Churners reaching the contactable decile at measured Recall@10% = 0.3333 | **125,987** |
+| **Required save rate on contacted customers** | 84,000 / 125,987 = **66.7%** |
 | Same, at the theoretical recall ceiling of 0.48 | 84,000 / 181,440 = **46.3%** |
 
-**A retention offer that converts 76% of would-be churners does not exist.** Published retention and win-back campaign save rates sit in the single digits to mid-teens; students should cite a source, and any sourced benchmark under ~25% supports the conclusion.
+**A retention offer that converts 67% of would-be churners does not exist.** Published retention and win-back campaign save rates sit in the single digits to mid-teens; students should cite a source, and any sourced benchmark under ~25% supports the conclusion.
 
 The constraint is structural, not a modelling shortfall. Maximum achievable churn-point reduction = 18pp × recall × save rate:
 
-| Save rate | Recall 0.293 (measured) | Recall 0.48 (ceiling) | Recall 1.0 (impossible) |
+| Save rate | Recall 0.3333 (measured) | Recall 0.48 (ceiling) | Recall 1.0 (impossible) |
 |---|---|---|---|
-| 5% | 0.26 pp | 0.43 pp | 0.90 pp |
-| 12% | 0.63 pp | 1.04 pp | 2.16 pp |
-| 25% | 1.32 pp | 2.16 pp | 4.50 pp |
+| 5% | 0.30 pp | 0.43 pp | 0.90 pp |
+| 12% | 0.72 pp | 1.04 pp | 2.16 pp |
+| 25% | 1.50 pp | 2.16 pp | 4.50 pp |
 
 **Even contacting 100% of the customer base at a 12% save rate yields 2.16 pp.** The 4 pp target requires a save rate above 22% at perfect recall. It was set before anyone measured the model, and it is not reachable by tuning.
 
@@ -197,18 +199,18 @@ What is actually achievable at a plausible 12% save rate:
 
 | | Value |
 |---|---|
-| Customers saved per year | 13,290 |
-| Value at $340 LTV | **$4.52M/yr** |
+| Customers saved per year | 15,118 |
+| Value at $340 LTV | **$5.14M/yr** |
 | Platform cost | $20,303/mo = **$0.24M/yr** |
-| **ROI** | **18.5x** |
-| Churn rate moves | 18% → **17.37%** (0.63 pp) |
-| **Break-even save rate** | **0.647%** — 717 customers/yr |
+| **ROI** | **21.1x** |
+| Churn rate moves | 18% → **17.28%** (0.72 pp) |
+| **Break-even save rate** | **0.569%** — 717 customers/yr |
 
 **Both statements are true and the scorecard must carry both:**
 
-> The platform is an excellent investment — it breaks even if the retention offer saves fewer than 7 in 1,000 contacted customers — **and** it will miss the CDO's stated 4-point target by roughly a factor of six.
+> The platform is an excellent investment — it breaks even if the retention offer saves fewer than 6 in 1,000 contacted customers — **and** it will miss the CDO's stated 4-point target by roughly a factor of five and a half.
 
-The correct recommendation is **Expand**, paired with renegotiating the target to ~0.6–0.8 pp, or changing the *program* (wider decile coverage, better offer conversion, higher recall) rather than the model.
+The correct recommendation is **Expand**, paired with renegotiating the target to ~0.7–0.9 pp, or changing the *program* (wider decile coverage, better offer conversion, higher recall) rather than the model.
 
 **Grading the 10 points:**
 
@@ -275,7 +277,7 @@ The 2026-07-06 version of this note is superseded. Defects found in the audit of
 | 32 | Cost per 1,000 predictions of $0.011 was asserted, not derived, and predated any measured rate or usage | Derived: **$0.012**, from usage × Price List rates, with arithmetic shown |
 | 33 | Deliverable location unspecified for Tasks 1 and 2 (Tasks 3–5 named a file) | All five sections in `docs/lab7-value-scorecard.md`, plus `docs/lab7-cost-model.csv` |
 | 34 | Cost-category taxonomy had no home for Glue pipeline compute — students split it three ways or dropped it | Row 3 renamed "Data pipeline, storage and transfer" with explicit instruction |
-| 35 | **The CDO's stated success metric (18% → 14%) is unreachable** with the deployed model: it requires a 75.8% offer save rate | Turned into the highest-value graded item in Task 3 rather than silently propagated |
+| 35 | **The CDO's stated success metric (18% → 14%) is unreachable** with the deployed model: it requires a 66.7% offer save rate | Turned into the highest-value graded item in Task 3 rather than silently propagated |
 | 36 | No lab material anywhere noted that **Cost Explorer reports $0.00** for the entire platform because free tier absorbs it | New "Your AWS Bill Is Not Your Cost" section, with the July 2026 usage table as evidence |
 | 37 | Nothing warned that the **Price List API returns a single pricing tier** — `CW:MetricMonitorUsage` returns $0.02 (over-1M tier) against an actual $0.30 | Documented in the spec's rate-card section and in the traps list |
 | 38 | Nothing warned that **Bedrock output-token prices are absent from the Price List API** in us-east-1 and its Claude coverage is stale | Documented; students directed to the pricing page with a cited date |
@@ -305,9 +307,9 @@ glue  = (1.031111*scale + 0.478611) * 0.44 * 52/12     # $65.54/mo
 churn_total = inf + fs + train + glue/3                # $108.16
 per_1k = churn_total/preds*1000                        # $0.0119
 
-capt = CUST*0.18*0.293                                 # 110,754 churners in decile
-required_save = (CUST*0.04)/capt                       # 0.758  <-- the finding
-breakeven = (20_303*12)/(capt*340)                     # 0.00647
+capt = CUST*0.18*0.3333                                # 125,987 churners in decile
+required_save = (CUST*0.04)/capt                       # 0.667  <-- the finding
+breakeven = (20_303*12)/(capt*340)                     # 0.00569
 ```
 
 Usage figures from `aws ce get-cost-and-usage --metrics UsageQuantity --group-by Type=DIMENSION,Key=USAGE_TYPE`, July 2026, account `711457211658`. Rates from `aws pricing get-products`, us-east-1, 2026-08-01.

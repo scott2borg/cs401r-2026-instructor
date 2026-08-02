@@ -219,13 +219,13 @@ Lifecycle rules *(new in Lab 2)*:
 **Crawler — `northstar-dev-raw-crawler`** *(new in Lab 2)*
 - Role: `northstar-dev-DataEngineer`
 - Target: S3 `raw/customers/` prefix
-- Output: table `raw_customers` in `northstar_dev` database
+- Output: table `customers` in `northstar_dev` database — the crawler names the table after the S3 prefix (`raw/customers/`) and no `TablePrefix` is set, so it is **`customers`, not `raw_customers`**
 - Schedule: on-demand (run manually or trigger from ingestion)
 
 **ETL Job — `northstar-dev-transform`** *(new in Lab 2)*
 - Type: Glue Spark (Python shell for smaller datasets)
 - Role: `northstar-dev-DataEngineer`
-- Source: `northstar_dev.raw_customers` (via Glue catalog)
+- Source: `northstar_dev.customers` (via Glue catalog)
 - Transforms: type casting, null imputation, deduplication, timestamp normalization
 - Sink: `processed/customers/` in S3 as Parquet
 
@@ -260,8 +260,8 @@ Draw this as two layers: infrastructure (VPC/network) and data flow (S3/Glue/Fea
 |------|----|-----------|-------|
 | Source data (external) | S3 `raw/customers/` | → | CSV upload |
 | Raw Crawler | S3 `raw/customers/` | → | scans schema |
-| Raw Crawler | Glue Catalog `raw_customers` | → | registers table |
-| Transform Job | Glue Catalog `raw_customers` | → | reads |
+| Raw Crawler | Glue Catalog `customers` | → | registers table |
+| Transform Job | Glue Catalog `customers` | → | reads |
 | Transform Job | S3 `processed/customers/` | → | writes Parquet |
 | Feature Engineer Job | S3 `processed/customers/` | → | reads |
 | Feature Engineer Job | S3 `features/customers/` | → | writes Parquet |
@@ -380,7 +380,7 @@ make local-validate 2>&1 | tee docs/lab2-localstack-output.txt
 |------|--------|---------------|
 | Private subnet + NAT Gateway created; SageMaker Domain moved to private subnet | 10 | Console: Domain InService, subnet ID matches `northstar-dev-private-1`; NAT Gateway Available |
 | All 3 IAM roles exist with correct trust and policies | 8 | `aws iam list-roles` shows all 3; `iam:SimulatePrincipalPolicy` confirms DataEngineer cannot **write** `artifacts/` (read on `artifacts/glue/` is expected — Glue fetches job scripts there), ModelMonitor cannot write S3 |
-| S3 lifecycle rules applied | 4 | `aws s3api get-bucket-lifecycle-configuration` returns all 4 rules |
+| S3 lifecycle rules applied | 4 | `aws s3api get-bucket-lifecycle-configuration` returns all 5 rules: `expire-raw-data`, `expire-raw-versions`, `expire-processed-versions`, `expire-feature-versions`, `expire-datacapture` |
 | LocalStack validation updated and passing | 3 | `docs/lab2-localstack-output.txt` shows 3 IAM roles; VPC exists (NAT skipped) |
 
 ---
@@ -465,7 +465,7 @@ aws glue start-crawler --name northstar-dev-raw-crawler
 aws glue get-crawler --name northstar-dev-raw-crawler --query 'Crawler.State'
 
 # Verify the table was created
-aws glue get-table --database-name northstar_dev --name raw_customers
+aws glue get-table --database-name northstar_dev --name customers
 
 # Run the transform job
 aws glue start-job-run --job-name northstar-dev-transform
@@ -481,7 +481,7 @@ aws s3 ls s3://northstar-dev-data-ACCOUNT_ID/processed/customers/ --recursive
 
 | Item | Points | Pass Criteria |
 |------|--------|---------------|
-| Glue catalog database and `raw_customers` table exist after crawler run | 6 | `aws glue get-table --database-name northstar_dev --name raw_customers` returns schema |
+| Glue catalog database and `customers` table exist after crawler run | 6 | `aws glue get-table --database-name northstar_dev --name customers` returns schema |
 | Transform script correctly casts types, imputes nulls, deduplicates | 12 | `verify-lab2.sh` runs assertions against `processed/customers/` output: correct Parquet schema, 0 null `customer_id` rows, no duplicate `customer_id` rows |
 | `modules/glue/` Terraform resources applied cleanly | 4 | Module present in repo; `terraform apply` creates crawler and job with 0 errors |
 | Transform job completes with SUCCEEDED status | 3 | `aws glue get-job-run` returns `JobRunState: SUCCEEDED` |
