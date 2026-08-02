@@ -85,15 +85,15 @@ or reduce the size of job data processed on an instance.
 
 That message will send you off shrinking your dataset, which is not the problem. **`ml.t3.large` (8 GB) is the floor.** Measured: baseline job completed in 5 min 46 s of billed instance time.
 
-> **Note the inversion from Lab 5.** Lab 5's trap was that *burstable instances cannot be auto-scaling targets* — you were forced off `ml.t3.*` onto `ml.m5.large`. In Lab 6 the constraint runs exactly the other way: burstable is the only class with any default processing quota at all. Same instance family, opposite conclusion, one lab apart.
+> **Note the inversion from Lab 5.** Lab 5's trap was that *burstable instances cannot be auto-scaling targets* — you were forced off `ml.t3.*` onto `ml.m5.large`. In Lab 6, the constraint runs exactly the other way: burstable is the only class with any default processing quota at all. Same instance family, opposite conclusion, one lab apart.
 >
-> **Endpoint quota, training quota and processing quota are three completely separate numbers**, and having one tells you nothing about the others. `ml.m5.large` has a *different* quota for each. The AWS default for all three on-demand families is 0; accounts accumulate higher applied limits through usage, which is why an endpoint that deployed fine in Lab 5 does not mean a processing job will run in Lab 6. Always check the specific quota for the specific job type.
+> **Endpoint quota, training quota, and processing quota are three completely separate numbers**, and having one tells you nothing about the others. `ml.m5.large` has a *different* quota for each. The AWS default for all three on-demand families is 0; accounts accumulate higher applied limits through usage, which is why an endpoint that deployed fine in Lab 5 does not mean a processing job will run in Lab 6. Always check the specific quota for the specific job type.
 
 If you want `ml.m5.large` for processing, you must file a Service Quotas increase (`L-8541302D`) and wait on an AWS Support case. **Do not put that on the critical path for this lab** — the lab is designed to complete on `ml.t3.large` with no quota request.
 
 ### 1. Your endpoint must have data capture enabled
 
-Model Monitor analyses inference data that the endpoint captured to S3. **No capture means nothing to analyse**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
+Model Monitor analyses inference data that the endpoint captured to S3. **No capture means nothing to analyze**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
 
 **Endpoint configs are immutable.** Capture cannot be switched on for a running endpoint. If your endpoint was deployed without it, you must create a new endpoint config and call `update-endpoint` (~3 min 47 s, zero downtime):
 
@@ -106,7 +106,7 @@ Capture lands under `s3://<bucket>/datacapture/<endpoint>/<variant>/<yyyy>/<mm>/
 
 ### 2. Use the ModelMonitorExecution role, not the ModelMonitor role
 
-The platform has two similarly named roles and they are **not interchangeable**:
+The platform has two similarly named roles, and they are **not interchangeable**:
 
 | Role | What it is | Use for |
 |---|---|---|

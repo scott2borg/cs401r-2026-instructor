@@ -7,7 +7,7 @@
 
 ## Objective
 
-Extend the NorthStar platform in two directions. First, harden the infrastructure left intentionally simple in Lab 1: move SageMaker into a private subnet behind a NAT Gateway, add the DataEngineer and ModelMonitor IAM roles, and add S3 lifecycle rules. Second, build the data pipeline that feeds the ML platform: raw data lands in S3, Glue crawls and transforms it, engineered features are written to SageMaker Feature Store.
+Extend the NorthStar platform in two directions. First, harden the infrastructure left intentionally simple in Lab 1: move SageMaker into a private subnet behind a NAT Gateway, add the DataEngineer and ModelMonitor IAM roles, and add S3 lifecycle rules. Second, build the data pipeline that feeds the ML platform: raw data lands in S3, Glue crawls and transforms it, and engineered features are written to SageMaker Feature Store.
 
 By the end of this lab, you will have a working end-to-end data pipeline: raw customer event data → cleaned and transformed records → feature vectors in Feature Store → ready for model training in Lab 3.
 
@@ -327,7 +327,7 @@ All infrastructure changes in this lab are made through Terraform. Do not use th
 
 ### Task 1 — Extend Platform Infrastructure (25 points)
 
-Modify your existing Terraform modules and apply the changes to real AWS.
+Modify your existing Terraform modules and apply the changes to a real AWS account.
 
 **Changes to `modules/vpc/`:**
 - Add `aws_subnet` (private, `10.0.1.0/24`, `us-east-1a`, no public IP)

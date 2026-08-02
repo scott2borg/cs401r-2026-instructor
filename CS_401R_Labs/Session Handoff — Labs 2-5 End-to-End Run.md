@@ -64,7 +64,7 @@ Both scripts use `seed=42` and `test_size=0.30`, so this is not split noise — 
 
 ## Defects found 2026-08-01 (second session)
 
-Continuing the running list, now at 43.
+Continuing the running list, now at 44.
 
 | # | Defect | Impact |
 |---|---|---|
@@ -73,6 +73,7 @@ Continuing the running list, now at 43.
 | 41 | **Four mutually inconsistent sets of Lab 3 reference metrics** (see above) | Lab 6's SLO justification and Lab 7 Task 3's graded arithmetic both rest on a figure no current code path produces |
 | 42 | **`generate_presentations.py` does not build the shipped decks.** It writes `Presentations/L01_Course_Introduction.pptx`; the decks in use are `Presentations/PowerPoint/CS-401R-4-F26-L01.pptx`. Nothing in the repo produces that name, and L01 is 41 MB against the generator's 358 KB | The previous handoff's suggested move #2 — "rebuild and re-upload the decks" — would have **overwritten heavily hand-edited decks with generator output**. Do not run that generator expecting to refresh what students see |
 | 43 | **Terraform reports an SNS email subscription as confirmed when it is not.** `aws_sns_topic_subscription.arn` returned a well-formed ARN for all four topics; `aws sns list-subscriptions-by-topic` returned the literal `PendingConfirmation` for the same four | Anything that reads the Terraform attribute records the alert path as live when no mail can be delivered. **Fourth instance** of the project's recurring pattern: a call that answers a question you did not ask and reports success |
+| 44 | **The only durable copy of the evaluation metrics lived inside the bucket teardown deletes.** `train_reference.py` wrote the full metrics blob — including `slices_by_tier` — to `s3://<data-bucket>/artifacts/evaluations/latest/`. That bucket is `force_destroy = true`. The Model Registry carried only four scalars and no slice data | This is why the 2026-08-01 slice AUCs are unrecoverable. Nothing on the account held a second copy, so a routine `terraform destroy` silently destroyed the evidence behind Lab 3's highest-value teaching point. **Fixed 2026-08-01** — see below |
 
 Defect 43 joins 37, 38 and the `--query`-per-page bug. The rule stands and now has a fourth data point: **never accept a success response as an answer to a question you did not literally ask.**
 
@@ -134,13 +135,19 @@ Three consequences worth knowing before you grade anything:
 
 **Defect 40 — lifecycle rule count. CLOSED, lab gains the fifth rule.** Lab 2's Architecture Reference, its rubric, the Lab 2 solution note and `verify-lab2.sh` all say **5** now and name `expire-datacapture` explicitly. The reference module was always right; the docs were wrong. The solution note tells TAs not to deduct from submissions graded against the older "4 rules" text.
 
+**Defect 44 — evaluation metrics did not survive teardown. FIXED.** `train_reference.py` now calls `persist_metrics()` **before** registration and regardless of `--skip-register`, writing the full blob to three places: `docs/lab3-evaluation-metrics.json` in the repo (git-tracked, required, survives everything), the `northstar-tfstate-<account>` bucket (the one bucket that is never force-destroyed), and the data bucket as before. The S3 copies are best-effort — verified that credential/bucket failures warn and the run still succeeds, because losing metrics to a failed upload after a clean training run is the same bug in a different coat.
+
+`CustomerMetadataProperties` on the model package went from 4 scalars to 16, now including `precision_top10`, `recall_top10`, `churn_rate`, per-tier `slice_<Tier>` entries, and — the one that matters — `slice_worst_tier` / `slice_worst_auc` as scalars, so the Platinum finding is visible in `describe-model-package` without parsing anything. The registry entry outlives the artifact bucket, so it is the last line of defence.
+
+Verified locally with a synthetic metrics blob: default path resolves into the repo, nested directories are created, `None` slice AUCs serialise, worst-tier selection ignores them, and the map stays inside SageMaker's 50-pair / 256-char limits. Not run against AWS — no infrastructure is standing.
+
 **Not committable: the three patched decks.** `Presentations/PowerPoint/` is in `.gitignore`, so the L01/L02/L07 churn-window fixes exist only in the working tree. Back them up somewhere durable — `/tmp/deckbak/` will not survive a reboot.
 
 ---
 
 ## Open threads, re-prioritised
 
-1. **Re-measure the slice AUCs.** The last figure in the course that no current run reproduces. Cheap — capture `slices` from `train_reference.py` on the next apply. Do it before anyone grades Lab 3 Task 1.
+1. **Re-measure the slice AUCs.** The last figure in the course that no current run reproduces. **Bundle it with thread 2** — Lab 4 CodePipeline needs the same infrastructure standing, so one apply pays the NAT once instead of twice. `train_reference.py` now persists slices automatically (defect 44, fixed), so the run is: apply → CSV → crawler → both Glue jobs → ~5 min hydration → `python models/churn/train_reference.py` → destroy. The metrics land in `docs/lab3-evaluation-metrics.json` and survive the teardown. Then update the Lab 3 solution note's slice table and drop its "pending re-measurement" banner. Do it before anyone grades Lab 3 Task 1 (due Oct 17 — no urgency, but do not let it reach a TA).
 2. **Lab 4 CodePipeline** — never run. Unblocked; needs a CodeStar connection and `pipeline.yaml` deployed. Now the largest genuinely unexecuted path in the course.
 4. **Canvas re-upload** — needs `CANVAS_API_TOKEN` / `CANVAS_COURSE_ID`.
 4. **Bedrock quotas still 0** — blocks Lab 3 Track B/C only. Unchanged. Still unanswered whether all 30 student accounts need individual grants; assume yes.

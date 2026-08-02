@@ -6,13 +6,7 @@
 **Primary tools:** SageMaker (training, Experiments, Model Registry), Bedrock
 **Prerequisite:** *Pre-Lab 3 — Bedrock Model Access Setup*, due Wed Sep 30
 
-> **If you have not completed the Bedrock setup exercise, do it now.** On a new AWS account every
-> Bedrock inference quota is **zero**, and access requires a one-time Anthropic use-case form plus
-> per-model quota increases that AWS reviews on its own schedule. This is not something you can
-> resolve the night before the deadline.
->
-> Track A (35 points) requires no Bedrock and can proceed regardless. Track B and Track C cannot
-> start without it. Sequence your work accordingly.
+> **If you have not completed the Bedrock setup exercise, do it now.** On a new AWS account, every Bedrock inference quota is **zero**, and access requires a one-time Anthropic use-case form plus per-model quota increases that AWS reviews on its own schedule. This is not something you can resolve the night before the deadline. Track A (35 points) requires no Bedrock and can proceed regardless. Track B and Track C cannot start without it. Sequence your work accordingly.
 
 ## Objective
 
@@ -49,7 +43,7 @@ This is why Lab 2 made you build category diversity, channel mix, and basket siz
 
 - `churn_training_skeleton.py` — SageMaker training entry point: Feature Store Athena query, XGBoost setup with class-imbalance handling, evaluation gates, slice-evaluation stub, Model Registry registration. Several `TODO`s are yours to complete.
 - `evaluation_harness.py` — dual-track evaluation. Track B: four RAGAS test cases built from real Lab 2 features, with ground truths written against the policy corpus. Track C: the five required agent scenarios plus a bonus prompt-injection case, each with expected and forbidden tool calls and an escalation expectation.
-- `prompt_templates/offer_generation_prompts.md` — five templates carrying two documented design weaknesses plus **three planted factual errors** in the tier-guidelines block. The errors are the kind a marketing team introduces writing copy from memory: two wrong tier thresholds and one benefit that exists at no tier. Find them by diffing against the policy corpus; injecting the block unchanged will fail faithfulness.
+- `prompt_templates/offer_generation_prompts.md` — five templates carrying two documented design weaknesses plus **three planted factual errors** in the tier-guidelines block. The errors are the kind a marketing team introduces when writing copy from memory: two wrong tier thresholds and one benefit that exists at no tier. Find them by diffing against the policy corpus; injecting the block unchanged will fail faithfulness.
 - `northstar-policy-docs/` — the RAG corpus for Track B: return policy, loyalty program terms, shipping policy, and an FAQ.
 
 ---
@@ -141,8 +135,7 @@ Generate personalised retention offers for customers your Task 1 model flags as 
 
 > **A real data-versus-policy gap, left in deliberately.** `POL-LOY-011` defines tier by
 > **trailing 12-month spend**. Lab 2's `loyalty_tier` feature is derived from
-> `total_lifetime_value` — all spend in the observation window, which for most customers is
-> close to but not exactly 12 months.
+> `total_lifetime_value` — all spend in the observation window, which for most customers is close to but not exactly 12 months.
 >
 > The tier in your feature store is therefore an *approximation* of the tier the policy
 > defines, and for customers near a threshold the two can disagree. This is not a bug in the
@@ -153,6 +146,7 @@ Generate personalised retention offers for customers your Task 1 model flags as 
 > customer's *actual* tier does not carry is a faithfulness failure whatever your feature store
 > says — which argues for stating tier-dependent benefits conditionally, or for reading tier
 > from the system of record at generation time rather than from the feature store.
+> 
 **Output:** a 2–3 sentence retention offer, grounded in actual policy, with a specific product-category recommendation.
 
 **Requirements:**
