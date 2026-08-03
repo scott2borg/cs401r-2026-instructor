@@ -27,7 +27,7 @@ All four lab starter kits are complete. Here's what was built:
 
 ### Lab 3 — Model Development
 
-- **`churn_training_skeleton.py`** — Full SageMaker training entry point. Feature Store Athena query pattern with `local-data-path` bypass for dev, XGBoost with class imbalance handling (`scale_pos_weight=5.5`), evaluation thresholds (AUC ≥ 0.72, precision@top10 ≥ 0.40, recall@top10 ≥ 0.35), slice evaluation stub, Model Registry registration (PendingManualApproval, never auto-approved).
+- **`churn_training_skeleton.py`** — Full SageMaker training entry point. Feature Store Athena query pattern with `local-data-path` bypass for dev, XGBoost with class imbalance handling (`scale_pos_weight=5.5`), evaluation gates (precision@top10 ≥ 0.50, recall@top10 ≥ 0.25, and a bootstrap 95% CI on the lift over the recency-only baseline that must exclude zero — **no absolute AUC threshold**, removed 2026-08-02), slice evaluation stub, Model Registry registration (PendingManualApproval, never auto-approved).
 - **`evaluation_harness.py`** — Dual-track harness. Track B: RAGAS evaluation (faithfulness ≥ 0.80, answer_relevancy ≥ 0.75, context_recall ≥ 0.70) with 3 test cases including the Platinum/low-LTV edge case. Track C: 5 agent scenarios (2 happy path, 2 boundary, 1 adversarial prompt injection) with tool-call and escalation verification via Bedrock trace inspection.
 - **`prompt_templates/offer_generation_prompts.md`** — 5 templates with intentional documented weaknesses for students to fix: tier-blind system prompt, missing Platinum/promo-sensitivity rule, retrieval query variants (A/B/C) to compare, guardrail block, and a pass/fail evaluation checklist.
 

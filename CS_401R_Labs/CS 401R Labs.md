@@ -31,7 +31,7 @@ This course has seven labs. Every lab adds a layer to the system — the **North
 All three systems share a single AWS platform. You build that platform across the seven labs.
 
 **Data Sources (simulated):**
-- `northstar-raw-sample.csv` — transaction-level purchase history: ~19,500 rows across 1,200 customers, spanning 2025-04-01 to 2026-06-30. One row per purchase. Deliberately dirty; Lab 2 cleans it.
+- `northstar-raw-sample.csv` — transaction-level purchase history: ~163,000 rows across ~11,400 customers, spanning 2025-04-01 to 2026-06-30. One row per purchase. Deliberately dirty; Lab 2 cleans it.
 - `northstar-policy-docs/` — NorthStar return policy, loyalty program terms, shipping policy, and customer FAQ. The RAG corpus for Lab 3 Track B.
 
 The transaction file spans an **observation window** (through 2026-04-01) and a **90-day holdout** after it. Lab 2 computes features from the observation window and derives `churn_label` from the holdout, which is what makes the Lab 3 churn model honest rather than circular.
@@ -940,7 +940,7 @@ Draw this as two layers: infrastructure (VPC/network) and data flow (S3/Glue/Fea
 
 ## Starter Kit (Canvas: Lab 2)
 
-- `northstar-raw-sample.csv` — roughly 19,500 synthetic **transaction** rows across 1,200 customers, spanning 2025-04-01 to 2026-06-30. Deliberately dirty: null `customer_id` values, duplicate `transaction_id` rows, mixed date formats, missing numeric fields, and stray whitespace — Task 2 is where you clean them.
+- `northstar-raw-sample.csv` — roughly 163,000 synthetic **transaction** rows across ~11,400 customers, spanning 2025-04-01 to 2026-06-30. Deliberately dirty: null `customer_id` values, duplicate `transaction_id` rows, mixed date formats, missing numeric fields, and stray whitespace — Task 2 is where you clean them. After cleaning, expect ~157,600 rows; ~10,000 customers have enough history in the observation window to carry features.
 
   The date range is not arbitrary. It covers an observation window (to 2026-04-01) and a 90-day holdout after it, which is what makes the churn label in Task 3 possible. About 21% of customers churn, and roughly a third of those are still buying right up to the cutoff — those are the ones a recency rule will miss.
 
@@ -1394,7 +1394,7 @@ Lab 2 wrote a Feature Group with 13 features and one label, built on a deliberat
 - Every **feature** was computed from purchases on or before `T`.
 - `churn_label` was derived from the holdout: **1** if the customer made no purchase in `(T, SNAPSHOT]`, else **0**.
 
-Your model predicts, from behavior observable at `T`, whether a customer will go silent over the following 90 days. Roughly **21%** of customers churn.
+Your model predicts, from behavior observable at `T`, whether a customer will go silent over the following 90 days. Roughly **22%** of customers churn.
 
 ### The part that makes this hard
 
@@ -1455,7 +1455,7 @@ Train a churn model on the Lab 2 Feature Store data.
 - Hyperparameters (`max_depth`, `eta`, `num_round`, `scale_pos_weight`) passed as arguments, never hardcoded.
 - Every training run tracked as a trial in **SageMaker Experiments**.
 - Final model registered in the **Model Registry** with status `PendingManualApproval`. Never auto-approve.
-- Class imbalance handled explicitly — roughly 21% positives. Justify your `scale_pos_weight`.
+- Class imbalance handled explicitly — roughly 22% positives. Justify your `scale_pos_weight`. (Reference run derives 3.545 from the training split rather than hardcoding it.)
 
 **Guard against leakage.** `churn_risk_score` is a feature in the Feature Group, and it is a pure recency heuristic. You may include it, but if you do, report results **with and without it**. Do not include `churn_label` as an input, and do not construct features from post-`T` data.
 
@@ -1463,29 +1463,35 @@ Train a churn model on the Lab 2 Feature Store data.
 
 | Metric | Your value | Threshold |
 |--------|-------|-----------|
-| AUC-ROC (holdout) | | ≥ 0.72 |
+| AUC-ROC (holdout) | | report it — **no fixed threshold** |
 | Precision @ top 10% | | ≥ 0.50 |
 | Recall @ top 10% | | ≥ 0.25 |
-| **AUC lift over recency-only baseline** | | **≥ +0.03** |
+| **AUC lift over recency-only baseline** | | **95% CI must exclude zero** |
 
-The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it. Reference implementation measured **0.7276 full vs 0.6298 recency-only, a lift of +0.0978** — so the threshold is comfortably achievable, but only if your feature set is doing real work.
+The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it — **with a confidence interval on the difference, not just two numbers.** Reference implementation measured **0.7696 full vs 0.7233 recency-only, a lift of +0.0464, 95% CI [0.0254, 0.0670]**.
 
-> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-01 (registry version v2), `seed=42`, `test_size=0.30`. The local CSV path (`train_local.py`) builds features differently and lands at AUC 0.7145 / baseline 0.6727. Do not mix the two. If you see older figures around 0.747, they are superseded.
+> **Why there is no absolute AUC threshold.** There used to be one — AUC ≥ 0.72 — and it was removed on 2026-08-02 because it was not a real gate. Measured across 200 random train/test splits of the same data, the reference model's AUC varied by ±0.03 and fell below 0.72 on **58% of splits**. A threshold that the reference implementation clears by luck of the shuffle grades your random seed, not your model. The old lift gate of ≥ 0.03 was worse: the threshold was *smaller than the metric's own standard deviation*.
+>
+> What replaces it is the question the lab actually asks: **did your feature engineering do measurable work?** You answer that with an interval. If the 95% CI on (your AUC − baseline AUC) excludes zero, you have evidence. If it straddles zero, you do not — regardless of how good the point estimate looks. Compute it by bootstrapping your test set: resample it with replacement ~2,000 times, score both models on each resample, and take the 2.5th and 97.5th percentiles of the difference. Resample the *rows once per replicate and score both models on them* — resampling the two models independently inflates the interval.
 
-Note the recall ceiling: with ~21% positives, targeting the top 10% of customers caps recall at about 48%. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
+> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-02 against the 10,000-customer dataset (registry version v4), `seed=42`, `test_size=0.30`, 6,999 train / 3,000 test. Any figure you encounter from before that date is superseded; the dataset was 8x smaller and its metrics did not reproduce.
+
+Note the recall ceiling: with ~22% positives, targeting the top 10% of customers caps recall at about **45%**. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
 
 Also include: confusion matrix at your chosen threshold, feature importance plot, and **slice evaluation across loyalty tiers**.
+
+> **Report `n` alongside every slice metric, and say which slices are too small to support a claim.** This is not bookkeeping. On an earlier, 8x smaller version of this dataset the Platinum tier held about 33 test customers with roughly 2 churners, and the measured Platinum AUC swung between 0.00 and 1.00 depending only on the random split — it read as "worse than random" on about a third of splits. That reading was published as a finding, and it was wrong: at ~300 test customers Platinum is the model's *strongest* slice. A slice metric without an `n` beside it is not a measurement, and a confident conclusion drawn from ~2 positives is how a careful-looking analysis ends up exactly backwards.
 
 **Rubric:**
 
 | Item | Points | Pass Criteria |
 |------|--------|---------------|
 | Training data pulled from Feature Store offline store via Athena | 5 | Training script issues an Athena query against the offline store table; no CSV path in the data-loading code |
-| Model meets AUC, precision, and recall thresholds | 8 | All three met on a held-out split |
-| **Beats the recency-only baseline by ≥ 0.03 AUC** | 7 | Both models' AUC reported; lift computed and shown |
+| Model meets precision and recall thresholds | 8 | Both met on a held-out split; AUC reported but not thresholded |
+| **Beats the recency-only baseline with a CI that excludes zero** | 7 | Both models' AUC reported, lift computed, and a 95% CI on the lift shown. A point estimate alone earns 3 of 7 |
 | SageMaker Experiments tracking | 5 | ≥3 runs visible as trials with logged metrics |
 | Model registered as `PendingManualApproval` | 5 | Visible in Model Registry with correct status and metadata |
-| Slice evaluation across loyalty tiers | 5 | AUC and recall per tier; any tier below aggregate explicitly flagged and discussed |
+| Slice evaluation across loyalty tiers | 5 | AUC, recall **and test-set n** per tier; the weakest tier flagged and discussed; any tier too small to conclude from called out as such |
 
 ---
 
@@ -1576,7 +1582,7 @@ The correct behaviour is to be empathetic, cite the policy, decline plainly, and
 
 Write `docs/lab3-model-design.md` (~700 words).
 
-1. **Churn model.** Why gradient boosting rather than logistic regression or a neural network, for *this* dataset — 1,200 customers, 13 tabular features, an interpretability requirement from the retention team? What would have to change for you to switch?
+1. **Churn model.** Why gradient boosting rather than logistic regression or a neural network, for *this* dataset — ~10,000 customers, 13 tabular features, an interpretability requirement from the retention team? What would have to change for you to switch?
 2. **What your features bought you.** Report the recency-only baseline against your full model. If the lift was small, say so and explain why. Which features carried real signal, and which were decorative?
 3. **LLM system.** Why RAG over fine-tuning (Track B), or an agent over a simpler pipeline (Track C)? Name the primary production risk of your choice.
 4. **What you would do differently** with 10× the time or data.
@@ -1658,9 +1664,9 @@ Build a test suite that runs automatically in CI. Tests must be executable via `
 - Cover: normal case, boundary case (customer with 0 purchases), edge case (single transaction)
 
 **Model evaluation test** (`tests/test_model.py`):
-- AUC-ROC ≥ 0.72 on held-out validation set
 - Precision@top10% ≥ 0.50 and recall@top10% ≥ 0.25
-- **Baseline gate: AUC must exceed the recency-only baseline by ≥ 0.03.** Your training script has to emit `baseline_auc_roc` alongside `auc_roc` for this to be checkable. This is the gate that stops a model that has learned nothing beyond "days since last purchase" from reaching the registry.
+- **Baseline gate: the 95% CI on (model AUC − recency-only baseline AUC) must exclude zero.** Your training script has to emit `baseline_auc_roc` and the CI bounds alongside `auc_roc` for this to be checkable. This is the gate that stops a model that has learned nothing beyond "days since last purchase" from reaching the registry.
+- **There is deliberately no absolute AUC threshold.** A fixed AUC gate was removed on 2026-08-02: across 200 splits of the same data the reference model fell below the old 0.72 bar on 58% of them, so the gate was testing the random seed. Report AUC, gate on the interval.
 - Regression test: new model AUC ≥ (champion model AUC − 0.02)
 - Prediction shape: output is a probability between 0 and 1 for every input
 
@@ -2283,7 +2289,7 @@ Define SLOs for the NorthStar churn prediction model in `docs/lab6-runbook.md`.
 
 Fill in the Error Budget (in minutes/month or events/month) and the Deployment Freeze Trigger for each SLO.
 
-> **Why the prediction-quality target is 0.25 and not something rounder.** With roughly 21% positives in the population, scoring only the top 10% caps achievable recall near **0.48** — you cannot retrieve more churners than fit in the decile you are allowed to contact. The Lab 3 reference model achieves **0.3333** (`train_reference.py`, measured 2026-08-01), and Lab 4's promotion gate is **≥ 0.25**. Setting the SLO above the gate that let the model ship would put it in breach on the day it launched. An SLO your system fails at launch is not a target; it is a broken alarm you will learn to ignore.
+> **Why the prediction-quality target is 0.25 and not something rounder.** With roughly 22% positives in the population, scoring only the top 10% caps achievable recall near **0.45** — you cannot retrieve more churners than fit in the decile you are allowed to contact. The Lab 3 reference model achieves **0.3106** (`train_reference.py`, measured 2026-08-02, registry v4), and Lab 4's promotion gate is **≥ 0.25**. Setting the SLO above the gate that let the model ship would put it in breach on the day it launched. An SLO your system fails at launch is not a target; it is a broken alarm you will learn to ignore.
 
 > **Why the latency SLO is 20 ms while the Task 1 alert fires at 200 ms.** These are different numbers doing different jobs, and conflating them is the most common SLO mistake in industry. An **SLO** is a promise measured over a month and spent down as an error budget. An **alert threshold** is the point at which you wake a human. Measured steady-state p95 on this endpoint is ~4.15 ms, so a 200 ms SLO would be met 48x over — free, unbreachable, and it would teach you nothing. At 20 ms you keep a healthy ~5x margin, but the ~24,000 µs cold start on every deployment *does* breach it. That is the intended lesson: your own deploys consume your error budget, which is precisely why error budgets govern deployment freezes.
 
@@ -2492,14 +2498,14 @@ This is a real inconsistency in the NorthStar case material, not a trick.
 | Source | Figure | Population and window |
 |---|---|---|
 | Case overview | churn **18% per year** | 2.1M active customers, annual |
-| Training dataset | positive rate **20.75%** | 1,200 sampled customers, 90-day label |
+| Training dataset | positive rate **22.0%** | ~10,000 sampled customers, 90-day label |
 
-A 20.75% rate per 90 days compounds to roughly **61% per year**, which is not 18%. The two figures describe different populations over different windows, and the sampled dataset is not a random draw from the customer base.
+A 22.0% rate per 90 days compounds to roughly **63% per year**, which is not 18%. The two figures describe different populations over different windows, and the sampled dataset is not a random draw from the customer base.
 
 **What this means for your work:**
 
 - **Business math** (value, ROI, lost LTV, the CDO's target) uses the case figures: 2.1M active customers, 18% annual churn, $340 lifetime value — which multiply to the case's stated $128.5M annual churn problem. That headline number is reproducible, and your analysis should reconcile to it.
-- **Model math** (recall, precision, lift, achievable coverage) uses the measured dataset figures: 20.75% base rate, Recall@10% of **0.3333** against a ceiling near 0.48.
+- **Model math** (recall, precision, lift, achievable coverage) uses the measured dataset figures: 22.0% base rate, Recall@10% of **0.3106** against a ceiling near 0.45.
 - **Never multiply one by the other without saying so.** Any place your analysis crosses between them, state the bridging assumption in one sentence. Task 2 is graded partly on whether you did.
 
 ### 4. The churn label is 90 days
@@ -2512,16 +2518,18 @@ Watch the distinction between the *label* window and the *feature* windows, beca
 
 You are not starting from a blank page. These are real, from the reference implementation, and you may use them directly. If your own Labs 2–6 produced different numbers, use yours and say so.
 
-**Model performance** — `models/churn/train_reference.py` (the Athena path), measured end to end on 2026-08-01, model-registry version **v2**, `seed=42`, `test_size=0.30`. These supersede every earlier figure in circulation (0.747 / 0.642 / 0.293 and 0.736 / 0.667); those came from a feature-build no current code path reproduces.
+**Model performance** — `models/churn/train_reference.py` (the Athena path), measured end to end on 2026-08-02 against the 10,000-customer dataset, model-registry version **v4**, deterministic `ORDER BY` pull, `seed=42`, `test_size=0.30`. These supersede every earlier figure in circulation. Note the lift is *smaller* than previously published: the recency-only baseline is much stronger at this scale, so feature engineering buys less than the course used to claim — but for the first time the margin has an interval around it that excludes zero.
 
 | Quantity | Value |
 |---|---|
-| AUC-ROC | **0.7276** |
-| Recency-only baseline AUC | 0.6298 |
-| AUC lift over baseline | **+0.0978** |
-| Precision@10% | **0.6944** |
-| Recall@10% | **0.3333** |
-| Recall@10% theoretical ceiling at 20.75% base rate | **~0.48** |
+| AUC-ROC | **0.7696** |
+| Recency-only baseline AUC | 0.7233 |
+| AUC lift over baseline | **+0.0464** |
+| Lift 95% CI | **[0.0254, 0.0670]** — excludes zero |
+| Precision@10% | **0.6833** |
+| Recall@10% | **0.3106** |
+| Recall@10% theoretical ceiling at 22.0% base rate | **~0.45** |
+| Train / test split | 6,999 / 3,000 |
 | Lab 4 promotion gate / Lab 6 SLO | Recall@10% ≥ 0.25 |
 | Inference latency p95 | **~4.1 ms** |
 | Cold-start latency, first call after deploy | ~24 ms |
@@ -2592,7 +2600,7 @@ Build the four-layer metric pyramid for **two** NorthStar AI systems:
 
 | Layer | Description | Example (Churn) |
 |-------|-------------|-----------------|
-| Model / System | Technical performance | AUC-ROC 0.7276, p95 latency 4.1 ms |
+| Model / System | Technical performance | AUC-ROC 0.7696, p95 latency 4.1 ms |
 | Model Output | What the model emits | Score distribution, daily alert volume |
 | User Experience | How people interact with the output | Offer acceptance rate, campaign click-through |
 | Business Outcome | Revenue or cost impact | 90-day retention rate, prevented churn revenue |
@@ -2794,11 +2802,11 @@ Roughly 300 words in Section 5.
 5. **The Price List API returns one pricing tier and does not tell you it is the wrong one.** `CW:MetricMonitorUsage` returns $0.02 (the over-1M-metrics tier) when your actual rate is $0.30. Always read the `description` field.
 6. **Bedrock output-token prices are absent from the Price List API** in us-east-1, and its Claude model coverage is stale. Use the pricing page and cite the date.
 7. **Failed jobs bill.** The reference account spent more instance time on one analyzer run that ran out of memory (13 min 42 s) than on the one that succeeded (5 min 45 s). Cost models built from successful runs are optimistic by construction.
-8. **The 18%/year case figure and the 20.75% dataset figure are not the same quantity.** Different population, different window. Mixing them produces confident nonsense.
+8. **The 18%/year case figure and the 22.0% dataset figure are not the same quantity.** Different population, different window. Mixing them produces confident nonsense.
 9. **The churn label looks forward 90 days; several features look back 30.** They sit in the same feature table and are easy to conflate. Any measurement window shorter than 90 days reports outcomes that have not happened yet.
 10. **`ModelLatency` is in microseconds** (carried from Lab 6). If you cite latency in a cost or SLO context, cite the unit.
 11. **A real-time endpoint bills 24×7 for a weekly batch workload.** Both Lab 5 and Lab 6 built one, deliberately, because they were teaching deployment and monitoring. Whether that is the right architecture for *this* workload is a Task 2d question, and it has a large answer.
-12. **Recall@10% is capped near 0.48** by the base rate and the decile constraint — you cannot retrieve more churners than fit in the 10% of the population you are allowed to contact. Any business projection implying recall above that ceiling is arithmetically impossible, not merely optimistic.
+12. **Recall@10% is capped near 0.45** by the base rate and the decile constraint — you cannot retrieve more churners than fit in the 10% of the population you are allowed to contact. Any business projection implying recall above that ceiling is arithmetically impossible, not merely optimistic.
 
 ## Teardown
 

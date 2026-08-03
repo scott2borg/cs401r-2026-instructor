@@ -15,62 +15,71 @@ total_points: 100
 
 ## Reference Run
 
-Track A was re-executed end to end on **2026-08-01** against account `711457211658`, as part of a continuous Labs 2→5 pass. The reference implementation is `models/churn/train_reference.py` in the live repo — the Athena path Task 1 requires. **These are the canonical numbers for the course.** They supersede the 2026-07-28 run (0.747 / 0.642 / +0.105 / 0.611 / 0.293), which the current Glue feature build no longer reproduces. `seed=42`, `test_size=0.30` in both runs, so this is not split noise.
+Track A was re-executed end to end on **2026-08-02** against account `711457211658`, as part of a full Labs 2→5 verification pass on the **10,000-customer** dataset. The reference implementation is `models/churn/train_reference.py` — the Athena path Task 1 requires, with a deterministic `ORDER BY customer_id` pull. **These are the canonical numbers for the course.**
 
-| Metric | Reference | Threshold | Margin |
+| Metric | Reference | Threshold | Verdict |
 |---|---|---|---|
-| AUC-ROC | **0.7276** | ≥ 0.72 | +0.0076 |
-| Recency-only baseline AUC | **0.6298** | — | — |
-| **Lift over baseline** | **+0.0978** | ≥ 0.03 | +0.0678 |
-| Precision @ top 10% | **0.6944** | ≥ 0.50 | +0.1944 |
-| Recall @ top 10% | **0.3333** | ≥ 0.25 | +0.0833 |
-| `scale_pos_weight` | 3.828 | derived | churn rate 20.75% |
-| Train / test | 840 / 360 | — | 1,200 customers |
-| Model package | **v2** | — | `northstar-churn-models` |
+| AUC-ROC | **0.7696** | *none — report only* | — |
+| Recency-only baseline AUC | **0.7233** | — | — |
+| **Lift over baseline** | **+0.0464** | 95% CI excludes 0 | **CI [0.0254, 0.0670] — PASS** |
+| Precision @ top 10% | **0.6833** | ≥ 0.50 | +0.1833 |
+| Recall @ top 10% | **0.3106** | ≥ 0.25 | +0.0606 |
+| `scale_pos_weight` | 3.545 | derived | churn rate 22.0% |
+| Train / test | 6,999 / 3,000 | — | ~10,000 customers |
+| Model package | **v4** | — | `northstar-churn-models` |
 
-Every threshold clears, but **the AUC gate now clears by only +0.0076.** That is a real change in grading posture: at the 2026-07-28 figures a merely-adequate student model comfortably passed; at 0.7276 the reference itself is close to the 0.72 line. Expect genuine near-misses and grade the method, not the third decimal. A student who skips feature engineering and trains on recency alone lands at 0.6298 and fails the AUC gate outright.
+**Everything published before 2026-08-02 is superseded, including the 0.7276 set that briefly replaced the 0.747 set.** Those came from a 1,200-customer dataset on a non-deterministic Athena pull; the same code produced AUC anywhere in 0.7276–0.7431 on identical data. Full evidence in `docs/lab3-metric-stability.md`. If a student cites a figure near 0.747 or 0.293, they are working from a stale handout — tell them which document is current rather than marking it wrong.
 
-**Do not quote any other figure as the reference.** Four inconsistent sets were in circulation before 2026-08-01; the Athena path above is the only one verified end to end and is the single source of truth.
+**Two things changed that affect how you grade:**
+
+1. **There is no AUC threshold any more.** Across 200 splits the old ≥ 0.72 gate failed on 58% of them, so it graded the random seed. Students report AUC; it is not a pass/fail criterion. Do not deduct for an AUC below 0.72.
+2. **The lift is much smaller than the course used to claim** — 0.0464, not 0.105. The recency-only baseline is genuinely strong at this scale (0.7233). A student who reports a small lift and says so honestly is *correct*, not weak. What earns the points is the interval: does the CI exclude zero?
 
 **Feature importance (gain), reference run:**
 
 ```
-days_since_last_purchase   6.15     avg_order_value          3.54
-purchase_frequency_180d    4.62     avg_basket_size_6m       3.37
-total_spend_90d            4.49     purchase_frequency_90d   3.00
-category_diversity_score   4.44     online_to_store_ratio    2.96
-total_lifetime_value       3.68     customer_tenure_days     2.87
-purchase_frequency_30d     3.68
+days_since_last_purchase  33.26     total_lifetime_value      9.94
+purchase_frequency_180d   18.75     category_diversity_score  8.36
+purchase_frequency_30d    14.79     total_spend_90d           8.30
+avg_order_value           12.24     purchase_frequency_90d    8.27
+total_lifetime_value       9.94     online_to_store_ratio     7.82
+customer_tenure_days       7.28     avg_basket_size_6m        6.91
 ```
 
-Recency leads but does not dominate — the spread across the other ten features is what produces the +0.0978 lift. A student whose importance plot shows recency at 80%+ has probably leaked it or dropped the behavioural features.
+Recency leads clearly — about 25% of total gain — but the behavioural features carry the rest, and that spread is what produces the +0.0464 lift. A student whose importance plot shows recency at 80%+ has probably leaked it or dropped the behavioural features.
 
 ---
 
-## The Platinum Finding — read this before grading Task 1
+## The Slice Finding — read this before grading Task 1
 
-The reference run's slice evaluation:
-
-> **Not re-measured on 2026-08-01.** The slice table below is from the 2026-07-28 run. `train_reference.py` still emits per-tier AUC, but the 2026-08-01 pass did not capture the slice output before teardown, and the infrastructure is now destroyed. The *finding* — Platinum is worse than random on ~3 positive examples — is structural and will survive any re-run. The *numbers* are pending re-measurement. Do not present them to students as current.
+The reference run's slice evaluation, 10,000-customer dataset, 3,000-row test set:
 
 | Tier | n | Churn rate | AUC |
 |---|---|---|---|
-| Bronze | 118 | 25.4% | **0.809** |
-| Gold | 59 | 17.0% | 0.745 |
-| Silver | 142 | 22.5% | 0.688 |
-| **Platinum** | **41** | **7.3%** | **0.430** |
+| **Platinum** | 307 | 6.8% | **0.8483** |
+| Gold | 483 | 10.8% | 0.7559 |
+| Bronze | 1,071 | 33.7% | 0.7442 |
+| **Silver** | **1,139** | 19.8% | **0.6935** |
 
-**The model is worse than random on Platinum customers** — the most valuable segment NorthStar has. An aggregate AUC in the 0.73–0.75 range hides it completely.
+**The model is weakest on Silver — its largest tier — and strongest on Platinum.** The aggregate AUC of 0.7696 hides a spread of about 0.15 between best and worst slice. That spread is the reason Task 1 awards 5 points for slice evaluation, and it is stable: across 40 splits Platinum is the best slice 95% of the time and Silver the worst 77.5% of the time.
 
-This is not a defect to fix before shipping the lab. It is the most valuable thing in Lab 3, and it is why Task 1 awards 5 points for slice evaluation.
+The business reading is what students should reach for. Silver is the biggest contactable population and the one where the ranking is least trustworthy, so a retention budget spent top-down on model score gets its least reliable guidance exactly where most of the money goes. Platinum churns rarely (6.8%) and is easy to rank — but there is little there to save.
 
-The cause is visible in the table: Platinum has 41 test customers at a 7.3% churn rate, so roughly **three** positive examples. There is not enough signal to learn from, and `scale_pos_weight` is tuned on the pooled 20.75% rate, which is wrong for this slice.
+### The second lesson, and it is the better one
 
-**Full credit:** the student reports per-tier numbers, flags Platinum explicitly, and reasons about the cause — small sample, class imbalance differing by slice, possibly needing a separate model or a business rule for high-value accounts. Naming the cause matters more than fixing it.
+**Until 2026-08-02 this section taught the opposite finding, and it was wrong.**
 
-**Not full credit:** aggregate AUC only, or slices reported without comment. A student who presents a healthy aggregate AUC as "the model works" has missed the lesson; if they propose deploying it to drive Platinum retention, call that out directly in feedback.
+On the previous 1,200-customer dataset, Platinum held about **33 test customers with roughly 2 churners**. Its measured AUC was 0.430, and the course taught that as a headline result: *the model is worse than random on your most valuable segment.* It was noise. Across 200 splits of that data, Platinum's AUC ranged from **0.00 to 1.00** with a standard deviation of 0.20, and came out "worse than random" on only 34.9% of them. At 307 test customers the same analysis on the same generator says Platinum is the model's **best** slice.
 
-Expect the exact Platinum AUC to vary between student runs — small n makes it unstable. Any value near or below 0.5 is the expected result. Grade the analysis, not the number.
+This is worth teaching directly, and it is worth more than the original finding:
+
+> A slice metric without an `n` next to it is not a measurement. The same analysis, run carefully, on data that was merely too small, produced a confident conclusion that was **exactly backwards** — and it survived review, got written into a rubric, and was taught.
+
+**Full credit** now requires the student to report per-tier AUC **with test-set n**, identify the weakest tier, reason about the cause, and — this is the new part — state which of their slices are too small to support a conclusion. A student whose Platinum slice has 12 customers and who says "I cannot conclude anything from this" has done *better* work than one who reports a confident number.
+
+**Not full credit:** aggregate AUC only; slices reported without `n`; or a strong claim about a slice with a handful of positives. A student who presents a healthy aggregate AUC as "the model works" has missed the lesson; if they propose deploying it to drive Silver retention without noting the weaker ranking there, call that out directly in feedback.
+
+Expect per-tier values to vary between student runs. Grade the analysis and the sample-size reasoning, not the third decimal.
 
 ---
 
@@ -91,13 +100,13 @@ An earlier skeleton draft used `write_time >= (SELECT MAX(write_time) ...)`, whi
 
 ### Meets AUC, precision, recall thresholds (8 pts)
 
-Verify against their reported held-out split. Reference: **0.7276 / 0.6944 / 0.3333**.
+Verify against their reported held-out split. Reference: **AUC 0.7696 / P@10% 0.6833 / R@10% 0.3106**. Only precision and recall are gated; AUC is reported, not thresholded.
 
-Note the **recall ceiling**: with ~21% positives, targeting the top 10% caps recall near 0.48. A student reporting recall@10% of 0.9 has computed it wrong — most likely over the full set rather than the top decile.
+Note the **recall ceiling**: with ~22% positives, targeting the top 10% caps recall near 0.45. A student reporting recall@10% of 0.9 has computed it wrong — most likely over the full set rather than the top decile.
 
 ### Beats the recency-only baseline by ≥ 0.03 AUC (7 pts)
 
-Both AUCs must be reported and the lift computed. Reference lift is **+0.0978**, so the bar is not tight — but it is only clearable if the behavioural features are doing real work.
+Both AUCs must be reported, the lift computed, **and a 95% CI on the lift shown**. Reference lift is **+0.0464, CI [0.0254, 0.0670]** — the interval excludes zero, which is the pass condition. A point estimate with no interval earns 3 of 7 no matter how large the lift looks. The bar is genuinely tighter than the old ≥ 0.03 threshold: on the previous 1,200-customer dataset the CI excluded zero on only 30% of splits, which is what a 360-row test set can actually support.
 
 **This is the gate that matters.** A model that cannot beat "days since last purchase" has not earned deployment, and Lab 4's CI pipeline enforces the same threshold. Award 0 if the baseline was never trained, even if the full model's AUC is excellent — the comparison is the deliverable, not the number.
 
@@ -110,7 +119,8 @@ Both AUCs must be reported and the lift computed. Reference lift is **+0.0978**,
 **Never auto-approved.** The reference run produced version **2** in group `northstar-churn-models` with status `PendingManualApproval` and metadata attached:
 
 ```
-auc_roc 0.7276 | baseline_auc_roc 0.6298 | auc_lift 0.0978 | feature_count 11
+auc_roc 0.7696 | baseline_auc_roc 0.7233 | auc_lift 0.0464 | precision_top10 0.6833
+recall_top10 0.3106 | churn_rate 0.22 | slice_worst_tier Silver | slice_worst_auc 0.6935
 ```
 
 Metadata is not required for the points, but a student who attached metrics to the model package has understood why a registry exists. Note it positively.
@@ -159,7 +169,7 @@ TC-006 (prompt injection) is a bonus. Do not deduct if skipped; it is not one of
 
 ## Task 3 — Design Justification (20 points)
 
-The **feature-value analysis (6 pts)** is where students most often coast. It requires reporting the baseline against the full model with numbers. "Feature engineering improved the model" earns 2 of 6. "Recency-only scored 0.6298, the full model 0.7276, a lift of +0.0978, driven mainly by `purchase_frequency_180d` and `total_spend_90d`" earns 6.
+The **feature-value analysis (6 pts)** is where students most often coast. It requires reporting the baseline against the full model with numbers. "Feature engineering improved the model" earns 2 of 6. "Recency-only scored 0.7233, the full model 0.7696, a lift of +0.0464 with a 95% CI of [0.0254, 0.0670], driven mainly by `purchase_frequency_180d` and `purchase_frequency_30d`" earns 6. Note the honest version of this answer is now less impressive than it used to be — the baseline is strong. Reward the student who says so.
 
 Award credit for honesty. A student whose lift was small and who says so, with a diagnosis, has done better work than one who hides it.
 
@@ -258,11 +268,11 @@ ls docs/ notebooks/    # RAGAS scores, or the five agent traces
 | Task | Max | Automated? | Notes |
 |---|---|---|---|
 | 1 — Athena offline store | 5 | Partial | Read the data-loading code |
-| 1 — Meets thresholds | 8 | Yes | Reference 0.7276 / 0.6944 / 0.3333 |
-| 1 — Beats baseline ≥ 0.03 | 7 | Yes | Reference +0.0978. 0 if no baseline |
+| 1 — Meets P@10%/R@10% thresholds | 8 | Yes | Reference 0.6833 / 0.3106. **No AUC gate** |
+| 1 — Beats baseline, CI excludes 0 | 7 | Yes | Reference +0.0464, CI [0.0254, 0.0670]. 3 of 7 if no CI; 0 if no baseline |
 | 1 — Experiments (≥3 trials) | 5 | Yes | |
 | 1 — Registry PendingManualApproval | 5 | Yes | 0 if auto-approved |
-| 1 — Slice evaluation | 5 | No | **Platinum must be flagged** |
+| 1 — Slice evaluation | 5 | No | **Per-tier n required**; weakest tier (Silver) flagged; small slices called out as inconclusive |
 | 2 — System runs end to end | 10 | No | Demo notebook |
 | 2 — Evaluation documented | 15 | Partial | RAGAS table or 5 traces |
 | 2 — Failure cases + mitigations | 10 | No | ≥2, named and specific |

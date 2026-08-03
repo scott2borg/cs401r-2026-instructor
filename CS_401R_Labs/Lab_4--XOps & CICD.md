@@ -36,9 +36,9 @@ Build a test suite that runs automatically in CI. Tests must be executable via `
 - Cover: normal case, boundary case (customer with 0 purchases), edge case (single transaction)
 
 **Model evaluation test** (`tests/test_model.py`):
-- AUC-ROC ≥ 0.72 on held-out validation set
 - Precision@top10% ≥ 0.50 and recall@top10% ≥ 0.25
-- **Baseline gate: AUC must exceed the recency-only baseline by ≥ 0.03.** Your training script has to emit `baseline_auc_roc` alongside `auc_roc` for this to be checkable. This is the gate that stops a model that has learned nothing beyond "days since last purchase" from reaching the registry.
+- **Baseline gate: the 95% CI on (model AUC − recency-only baseline AUC) must exclude zero.** Your training script has to emit `baseline_auc_roc` and the CI bounds alongside `auc_roc` for this to be checkable. This is the gate that stops a model that has learned nothing beyond "days since last purchase" from reaching the registry.
+- **There is deliberately no absolute AUC threshold.** A fixed AUC gate was removed on 2026-08-02: across 200 splits of the same data the reference model fell below the old 0.72 bar on 58% of them, so the gate was testing the random seed. Report AUC, gate on the interval.
 - Regression test: new model AUC ≥ (champion model AUC − 0.02)
 - Prediction shape: output is a probability between 0 and 1 for every input
 

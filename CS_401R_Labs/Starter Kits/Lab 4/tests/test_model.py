@@ -341,11 +341,19 @@ class TestStoredMetricsGate:
     These tests are the definitive quality gate in the CI pipeline.
     """
 
+    # Aligned with Lab 3's gates as of 2026-08-02.
+    #
+    # There is deliberately NO auc_roc entry. A 0.72 AUC gate was removed after
+    # a 200-split sweep measured the reference model failing it on 58% of
+    # splits: it gated the random seed, not the model. AUC is reported, not
+    # thresholded.
+    #
+    # The old precision 0.40 / recall 0.35 pair also did not match Lab 3, which
+    # has always asked for 0.50 / 0.25. That mismatch meant a model could pass
+    # Lab 3 and fail Lab 4's CI, or the reverse.
     REQUIRED_METRICS = {
-        "auc_roc": 0.72,
-        "precision_top10": 0.40,
-        "recall_top10": 0.35,
-        "auc_vs_baseline": 0.05,
+        "precision_top10": 0.50,
+        "recall_top10": 0.25,
     }
 
     @pytest.fixture(scope="class")
@@ -355,12 +363,6 @@ class TestStoredMetricsGate:
             pytest.skip(f"Evaluation metrics not found at {metrics_path}.")
         with open(metrics_path) as f:
             return json.load(f)
-
-    def test_auc_roc_meets_threshold(self, eval_metrics):
-        auc = eval_metrics.get("auc_roc", 0)
-        assert auc >= self.REQUIRED_METRICS["auc_roc"], (
-            f"AUC-ROC {auc:.4f} < required {self.REQUIRED_METRICS['auc_roc']}"
-        )
 
     def test_precision_top10_meets_threshold(self, eval_metrics):
         p = eval_metrics.get("precision_top10", 0)
@@ -375,18 +377,32 @@ class TestStoredMetricsGate:
         )
 
     def test_model_beats_baseline(self, eval_metrics):
-        delta = eval_metrics.get("auc_vs_baseline", 0)
-        assert delta >= self.REQUIRED_METRICS["auc_vs_baseline"], (
-            f"AUC vs baseline {delta:.4f} < required {self.REQUIRED_METRICS['auc_vs_baseline']}. "
-            f"Model barely outperforms predicting the mean churn rate."
+        """The promotion gate: the lift CI must exclude zero.
+
+        Not a threshold on the point estimate. A lift of +0.05 with a CI of
+        [-0.01, 0.11] is not evidence of anything; a lift of +0.02 with a CI
+        of [0.005, 0.035] is. The baseline is the recency-only model, not a
+        constant predictor - beating a coin flip proves nothing.
+        """
+        lo = eval_metrics.get("lift_ci_low")
+        hi = eval_metrics.get("lift_ci_high")
+        assert lo is not None and hi is not None, (
+            "lift_ci_low/lift_ci_high missing from evaluation metrics. The "
+            "training script must emit a bootstrap CI on the lift over the "
+            "recency-only baseline."
+        )
+        assert lo > 0, (
+            f"Lift 95% CI [{lo:.4f}, {hi:.4f}] includes zero. No evidence the "
+            f"model beats the recency-only baseline; it will not be promoted."
         )
 
     def test_positive_rate_is_realistic(self, eval_metrics):
-        """The validation set churn rate should be near the expected 15%."""
+        """The validation set churn rate should be near the measured 22%."""
         rate = eval_metrics.get("positive_rate_val", -1)
         if rate < 0:
             pytest.skip("positive_rate_val not in metrics")
-        assert 0.08 <= rate <= 0.25, (
-            f"Validation churn rate {rate:.1%} outside expected range [8%, 25%]. "
-            f"Check that your validation split is stratified."
+        assert 0.15 <= rate <= 0.30, (
+            f"Validation churn rate {rate:.1%} outside expected range [15%, 30%]. "
+            f"The reference dataset measures 22.0%. Check that your validation "
+            f"split is stratified."
         )

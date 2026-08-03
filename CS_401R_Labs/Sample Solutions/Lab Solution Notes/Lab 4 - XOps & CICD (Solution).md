@@ -25,29 +25,32 @@ PRE_BUILD        SUCCEEDED    14s     test_data 26 passed · test_features 18 pa
 BUILD            SUCCEEDED     1s     quality gate 4/4 PASS
 ```
 
-Passing gate output, using the verified Lab 3 Track A metrics (`train_reference.py`, 2026-08-01, registry v2):
+Passing gate output, using the verified Lab 3 Track A metrics (`train_reference.py`, 2026-08-02, 10k dataset, registry v4):
 
 ```
-auc_roc            0.7276   (min: 0.72)  PASS
-precision_top10    0.6944   (min: 0.5)   PASS
-recall_top10       0.3333   (min: 0.25)  PASS
-auc lift          +0.0978   (min: 0.03)  PASS
+auc_roc            0.7696   (reported, not gated)
+precision_top10    0.6833   (min: 0.5)   PASS
+recall_top10       0.3106   (min: 0.25)  PASS
+auc lift          +0.0464   95% CI [0.0254, 0.0670] excludes 0  PASS
 ```
 
 **The blocking case, which is the point of the lab.** A second build was run with a model scoring AUC 0.800 — *better* than the reference — but only +0.005 over the recency baseline:
 
 ```
-auc_roc            0.8000   (min: 0.72)  PASS
+auc_roc            0.8000   (reported, not gated)
 precision_top10    0.7000   (min: 0.5)   PASS
 recall_top10       0.4000   (min: 0.25)  PASS
-auc lift          +0.0050   (min: 0.03)  FAIL
+auc lift          +0.0050   95% CI [-0.0121, 0.0223] includes 0   FAIL
 
 Model quality gate FAILED:
-  - auc lift +0.0050 < 0.03
+  - auc lift 95% CI [-0.0121, 0.0223] includes zero: no evidence the
+    model beats the recency-only baseline
 Model will NOT be promoted to the registry.
 
 BUILD STATUS: FAILED
 ```
+
+**This case is sharper under the CI gate than it was under the old ≥ 0.03 threshold.** Previously a student could argue the 0.03 bar was arbitrary — and they would have had a point, since the threshold was smaller than the metric's own standard deviation. Now the failure is not "you missed a number we picked," it is "your measurement cannot distinguish your model from the baseline." That is the lesson: **a high AUC with no separation from the trivial model is not a shippable model**, and the highest-AUC candidate is not automatically the best one.
 
 A student whose pipeline promotes that model has not built a gate. Reproducing this specific case is the fastest way to grade Task 2.
 

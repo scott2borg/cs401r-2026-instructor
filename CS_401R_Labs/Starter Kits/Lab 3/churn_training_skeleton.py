@@ -282,14 +282,24 @@ def train_model(X_train: np.ndarray,
 # ── Evaluation ─────────────────────────────────────────────────────────────────
 
 EVAL_THRESHOLDS = {
-    "auc_roc":           0.72,   # Minimum AUC-ROC on validation set
     "precision_top10":   0.50,   # Minimum precision @ top 10% scored customers
     "recall_top10":      0.25,   # Minimum recall @ top 10% scored customers
-    # Note the recall ceiling: with ~21% positives, targeting the top 10% of
-    # customers caps achievable recall near 0.48. Hitting 0.25 means capturing
+    # Note the recall ceiling: with ~22% positives, targeting the top 10% of
+    # customers caps achievable recall near 0.45. Hitting 0.25 means capturing
     # roughly half of what is reachable within that contact budget.
-    "auc_vs_baseline":   0.05,   # Must beat predict-mean baseline by 5+ points
 }
+
+# There is deliberately NO absolute AUC threshold. One used to live here
+# (auc_roc >= 0.72) and it was removed on 2026-08-02: measured across 200
+# random train/test splits of the same data, the reference model fell below
+# 0.72 on 58% of them. A gate the reference clears by luck of the shuffle
+# grades your random seed, not your model. Report AUC; do not gate on it.
+#
+# The baseline gate is an INTERVAL, not a threshold: the 95% CI on
+# (your AUC - recency-only baseline AUC) must exclude zero.
+BASELINE_FEATURE = "days_since_last_purchase"
+BOOTSTRAP_N = 2000
+BOOTSTRAP_SEED = 42
 
 
 def evaluate_model(model: xgb.Booster,
@@ -311,9 +321,31 @@ def evaluate_model(model: xgb.Booster,
     precision_top10 = y_val[top10_mask].mean() if top10_mask.sum() > 0 else 0.0
     recall_top10 = y_val[top10_mask].sum() / y_val.sum() if y_val.sum() > 0 else 0.0
 
-    # Baseline: always predict mean churn rate
-    baseline_auc = roc_auc_score(y_val, np.full_like(y_pred_proba, y_val.mean()))
+    # Baseline: a model trained on days_since_last_purchase ALONE.
+    #
+    # This used to be `np.full_like(y_pred_proba, y_val.mean())` - a constant
+    # prediction, whose AUC is exactly 0.5 by definition. Beating a coin flip
+    # is not evidence that your feature engineering did anything, and it is not
+    # what Lab 3 asks for. The comparison that matters is against recency,
+    # because recency is the rule the business already has for free.
+    #
+    # TODO(you): train the recency-only baseline and score it on the SAME
+    # validation split, then assign baseline_proba below. It must be a trained
+    # model on one column, not a heuristic you invent here.
+    baseline_proba = train_recency_baseline(X_val, y_val)   # noqa: F821
+    baseline_auc = roc_auc_score(y_val, baseline_proba)
     auc_vs_baseline = auc_roc - baseline_auc
+
+    # TODO(you): bootstrap a 95% CI on the LIFT. Resample the validation rows
+    # with replacement BOOTSTRAP_N times; on each replicate score BOTH models
+    # on the SAME resampled rows and record the difference in AUC. The CI is
+    # the 2.5th and 97.5th percentiles of those differences.
+    #
+    # Resample once per replicate and score both models on it. Resampling the
+    # two models independently breaks the pairing and inflates the interval.
+    # Skip replicates where the resample is single-class - AUC is undefined.
+    lift_ci_low, lift_ci_high = bootstrap_lift_ci(   # noqa: F821
+        y_val, y_pred_proba, baseline_proba)
 
     metrics = {
         "auc_roc": round(float(auc_roc), 4),
@@ -321,6 +353,8 @@ def evaluate_model(model: xgb.Booster,
         "recall_top10": round(float(recall_top10), 4),
         "auc_vs_baseline": round(float(auc_vs_baseline), 4),
         "baseline_auc": round(float(baseline_auc), 4),
+        "lift_ci_low": round(float(lift_ci_low), 4),
+        "lift_ci_high": round(float(lift_ci_high), 4),
         "positive_rate_val": round(float(y_val.mean()), 4),
         "n_val_samples": int(len(y_val)),
         "eval_timestamp": datetime.utcnow().isoformat(),
@@ -334,6 +368,15 @@ def evaluate_model(model: xgb.Booster,
         print(f"  {metric:25s}: {value:.4f}  (threshold: {threshold:.4f})  {status}")
         if value < threshold:
             failures.append(f"{metric}={value:.4f} < {threshold}")
+
+    # The baseline gate: the interval must exclude zero.
+    ci_status = "\u2713 PASS" if lift_ci_low > 0 else "\u2717 FAIL"
+    print(f"  {'auc_lift 95% CI':25s}: [{lift_ci_low:.4f}, {lift_ci_high:.4f}]"
+          f"  (must exclude 0)  {ci_status}")
+    if lift_ci_low <= 0:
+        failures.append(
+            f"auc_lift 95% CI [{lift_ci_low:.4f}, {lift_ci_high:.4f}] includes "
+            f"zero - no evidence the model beats the recency-only baseline")
 
     if failures:
         raise ValueError(

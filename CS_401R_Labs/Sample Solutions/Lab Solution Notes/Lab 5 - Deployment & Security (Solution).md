@@ -51,7 +51,7 @@ Unit       Microseconds
 >
 > To verify deployment mechanics without re-running the whole Lab 2 data platform, the reference deployment used a model trained locally from `data/northstar-raw-sample.csv` through the verified pandas `feature_engineering.py`. Its metrics were **AUC 0.7444, baseline 0.7175, lift +0.0268, precision@10 0.70, recall@10 0.3387** on 1,200 customers at a 20.8% churn rate.
 >
-> **That lift of +0.0268 is below Lab 4's ≥0.03 gate — this model would have failed the Lab 4 build.** That is fine for Lab 5's purposes, because deployment mechanics are model-agnostic, but do not quote these numbers to students as targets. **The canonical Lab 3 Track A metrics are AUC 0.7276 / baseline 0.6298 / lift +0.0978 / precision@10 0.6944 / recall@10 0.3333** (`train_reference.py`, Athena path, measured 2026-08-01, registry v2). Earlier figures around 0.747 / 0.293 are superseded.
+> **That lift of +0.0268 is below Lab 4's ≥0.03 gate — this model would have failed the Lab 4 build.** That is fine for Lab 5's purposes, because deployment mechanics are model-agnostic, but do not quote these numbers to students as targets. **The canonical Lab 3 Track A metrics are AUC 0.7696 / baseline 0.7233 / lift +0.0464 (95% CI [0.0254, 0.0670]) / precision@10 0.6833 / recall@10 0.3106** (`train_reference.py`, Athena path, 10,000-customer dataset, measured 2026-08-02, registry v4). All earlier figures are superseded.
 
 ---
 

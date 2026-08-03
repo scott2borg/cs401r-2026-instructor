@@ -29,7 +29,7 @@ Lab 2 wrote a Feature Group with 13 features and one label, built on a deliberat
 - Every **feature** was computed from purchases on or before `T`.
 - `churn_label` was derived from the holdout: **1** if the customer made no purchase in `(T, SNAPSHOT]`, else **0**.
 
-Your model predicts, from behavior observable at `T`, whether a customer will go silent over the following 90 days. Roughly **21%** of customers churn.
+Your model predicts, from behavior observable at `T`, whether a customer will go silent over the following 90 days. Roughly **22%** of customers churn.
 
 ### The part that makes this hard
 
@@ -90,7 +90,7 @@ Train a churn model on the Lab 2 Feature Store data.
 - Hyperparameters (`max_depth`, `eta`, `num_round`, `scale_pos_weight`) passed as arguments, never hardcoded.
 - Every training run tracked as a trial in **SageMaker Experiments**.
 - Final model registered in the **Model Registry** with status `PendingManualApproval`. Never auto-approve.
-- Class imbalance handled explicitly — roughly 21% positives. Justify your `scale_pos_weight`.
+- Class imbalance handled explicitly — roughly 22% positives. Justify your `scale_pos_weight`. (Reference run derives 3.545 from the training split rather than hardcoding it.)
 
 **Guard against leakage.** `churn_risk_score` is a feature in the Feature Group, and it is a pure recency heuristic. You may include it, but if you do, report results **with and without it**. Do not include `churn_label` as an input, and do not construct features from post-`T` data.
 
@@ -98,29 +98,35 @@ Train a churn model on the Lab 2 Feature Store data.
 
 | Metric | Your value | Threshold |
 |--------|-------|-----------|
-| AUC-ROC (holdout) | | ≥ 0.72 |
+| AUC-ROC (holdout) | | report it — **no fixed threshold** |
 | Precision @ top 10% | | ≥ 0.50 |
 | Recall @ top 10% | | ≥ 0.25 |
-| **AUC lift over recency-only baseline** | | **≥ +0.03** |
+| **AUC lift over recency-only baseline** | | **95% CI must exclude zero** |
 
-The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it. Reference implementation measured **0.7276 full vs 0.6298 recency-only, a lift of +0.0978** — so the threshold is comfortably achievable, but only if your feature set is doing real work.
+The baseline is a model trained on `days_since_last_purchase` alone. Train it, report its AUC, and show your full model beats it — **with a confidence interval on the difference, not just two numbers.** Reference implementation measured **0.7696 full vs 0.7233 recency-only, a lift of +0.0464, 95% CI [0.0254, 0.0670]**.
 
-> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-01 (registry version v2), `seed=42`, `test_size=0.30`. The local CSV path (`train_local.py`) builds features differently and lands at AUC 0.7145 / baseline 0.6727. Do not mix the two. If you see older figures around 0.747, they are superseded.
+> **Why there is no absolute AUC threshold.** There used to be one — AUC ≥ 0.72 — and it was removed on 2026-08-02 because it was not a real gate. Measured across 200 random train/test splits of the same data, the reference model's AUC varied by ±0.03 and fell below 0.72 on **58% of splits**. A threshold that the reference implementation clears by luck of the shuffle grades your random seed, not your model. The old lift gate of ≥ 0.03 was worse: the threshold was *smaller than the metric's own standard deviation*.
+>
+> What replaces it is the question the lab actually asks: **did your feature engineering do measurable work?** You answer that with an interval. If the 95% CI on (your AUC − baseline AUC) excludes zero, you have evidence. If it straddles zero, you do not — regardless of how good the point estimate looks. Compute it by bootstrapping your test set: resample it with replacement ~2,000 times, score both models on each resample, and take the 2.5th and 97.5th percentiles of the difference. Resample the *rows once per replicate and score both models on them* — resampling the two models independently inflates the interval.
 
-Note the recall ceiling: with ~21% positives, targeting the top 10% of customers caps recall at about 48%. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
+> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-02 against the 10,000-customer dataset (registry version v4), `seed=42`, `test_size=0.30`, 6,999 train / 3,000 test. Any figure you encounter from before that date is superseded; the dataset was 8x smaller and its metrics did not reproduce.
+
+Note the recall ceiling: with ~22% positives, targeting the top 10% of customers caps recall at about **45%**. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
 
 Also include: confusion matrix at your chosen threshold, feature importance plot, and **slice evaluation across loyalty tiers**.
+
+> **Report `n` alongside every slice metric, and say which slices are too small to support a claim.** This is not bookkeeping. On an earlier, 8x smaller version of this dataset the Platinum tier held about 33 test customers with roughly 2 churners, and the measured Platinum AUC swung between 0.00 and 1.00 depending only on the random split — it read as "worse than random" on about a third of splits. That reading was published as a finding, and it was wrong: at ~300 test customers Platinum is the model's *strongest* slice. A slice metric without an `n` beside it is not a measurement, and a confident conclusion drawn from ~2 positives is how a careful-looking analysis ends up exactly backwards.
 
 **Rubric:**
 
 | Item | Points | Pass Criteria |
 |------|--------|---------------|
 | Training data pulled from Feature Store offline store via Athena | 5 | Training script issues an Athena query against the offline store table; no CSV path in the data-loading code |
-| Model meets AUC, precision, and recall thresholds | 8 | All three met on a held-out split |
-| **Beats the recency-only baseline by ≥ 0.03 AUC** | 7 | Both models' AUC reported; lift computed and shown |
+| Model meets precision and recall thresholds | 8 | Both met on a held-out split; AUC reported but not thresholded |
+| **Beats the recency-only baseline with a CI that excludes zero** | 7 | Both models' AUC reported, lift computed, and a 95% CI on the lift shown. A point estimate alone earns 3 of 7 |
 | SageMaker Experiments tracking | 5 | ≥3 runs visible as trials with logged metrics |
 | Model registered as `PendingManualApproval` | 5 | Visible in Model Registry with correct status and metadata |
-| Slice evaluation across loyalty tiers | 5 | AUC and recall per tier; any tier below aggregate explicitly flagged and discussed |
+| Slice evaluation across loyalty tiers | 5 | AUC, recall **and test-set n** per tier; the weakest tier flagged and discussed; any tier too small to conclude from called out as such |
 
 ---
 
@@ -211,7 +217,7 @@ The correct behaviour is to be empathetic, cite the policy, decline plainly, and
 
 Write `docs/lab3-model-design.md` (~700 words).
 
-1. **Churn model.** Why gradient boosting rather than logistic regression or a neural network, for *this* dataset — 1,200 customers, 13 tabular features, an interpretability requirement from the retention team? What would have to change for you to switch?
+1. **Churn model.** Why gradient boosting rather than logistic regression or a neural network, for *this* dataset — ~10,000 customers, 13 tabular features, an interpretability requirement from the retention team? What would have to change for you to switch?
 2. **What your features bought you.** Report the recency-only baseline against your full model. If the lift was small, say so and explain why. Which features carried real signal, and which were decorative?
 3. **LLM system.** Why RAG over fine-tuning (Track B), or an agent over a simpler pipeline (Track C)? Name the primary production risk of your choice.
 4. **What you would do differently** with 10× the time or data.
