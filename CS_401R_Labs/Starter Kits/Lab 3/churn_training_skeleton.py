@@ -302,9 +302,76 @@ BOOTSTRAP_N = 2000
 BOOTSTRAP_SEED = 42
 
 
+def train_recency_baseline(X_train: np.ndarray,
+                           y_train: np.ndarray,
+                           X_val: np.ndarray) -> np.ndarray:
+    """Train the recency-only baseline and score the validation split.
+
+    The baseline is a model over `days_since_last_purchase` ALONE, trained on
+    the same training rows and scored on the same validation rows as the full
+    model. That is what makes the comparison fair.
+
+    It is deliberately NOT a constant predictor. A constant prediction has an
+    AUC of exactly 0.5 by construction, so "beating" it proves only that your
+    model is better than a coin flip. The question Lab 3 asks is whether your
+    feature engineering beats the rule the business already has for free:
+    "contact whoever has not purchased in a while."
+    """
+    i = FEATURE_COLUMNS.index(BASELINE_FEATURE)
+    dtr = xgb.DMatrix(X_train[:, [i]], label=y_train, feature_names=[BASELINE_FEATURE])
+    dva = xgb.DMatrix(X_val[:, [i]], feature_names=[BASELINE_FEATURE])
+    spw = float((y_train == 0).sum() / max((y_train == 1).sum(), 1))
+    params = {
+        "objective": "binary:logistic", "eval_metric": "auc",
+        "max_depth": 4, "eta": 0.1, "subsample": 0.9,
+        "colsample_bytree": 1.0, "scale_pos_weight": spw, "seed": 42,
+    }
+    return xgb.train(params, dtr, num_boost_round=200).predict(dva)
+
+
+def bootstrap_lift_ci(y_true: np.ndarray,
+                      proba: np.ndarray,
+                      baseline_proba: np.ndarray,
+                      n: int = BOOTSTRAP_N,
+                      seed: int = BOOTSTRAP_SEED,
+                      alpha: float = 0.05) -> tuple[float, float]:
+    """Percentile CI for (model AUC - baseline AUC), by resampling the val set.
+
+    PAIRED: each replicate resamples row indices once and scores BOTH models on
+    those same rows, so the interval is on the difference and the correlation
+    between the two models is preserved. Resampling them independently breaks
+    the pairing and inflates the interval, which would make a real improvement
+    look inconclusive.
+
+    Replicates whose resample happens to be single-class are skipped, because
+    AUC is undefined there.
+
+    The seed is fixed so the gate is reproducible: the same split must always
+    produce the same verdict.
+    """
+    rng = np.random.default_rng(seed)
+    y_true = np.asarray(y_true)
+    idx = np.arange(len(y_true))
+    diffs = []
+    for _ in range(n):
+        s = rng.choice(idx, size=len(idx), replace=True)
+        ys = y_true[s]
+        if len(np.unique(ys)) < 2:
+            continue
+        diffs.append(roc_auc_score(ys, proba[s]) - roc_auc_score(ys, baseline_proba[s]))
+    if len(diffs) < n // 2:
+        raise ValueError(
+            "Too few usable bootstrap replicates to form a confidence interval. "
+            "Your validation set is too small or too imbalanced to support this gate."
+        )
+    d = np.sort(diffs)
+    return float(np.quantile(d, alpha / 2)), float(np.quantile(d, 1 - alpha / 2))
+
+
 def evaluate_model(model: xgb.Booster,
                    X_val: np.ndarray,
-                   y_val: np.ndarray) -> dict:
+                   y_val: np.ndarray,
+                   baseline_proba: np.ndarray) -> dict:
     """
     Evaluate the trained model against required thresholds.
     Returns a metrics dict. Raises ValueError if thresholds are not met.
@@ -329,22 +396,10 @@ def evaluate_model(model: xgb.Booster,
     # what Lab 3 asks for. The comparison that matters is against recency,
     # because recency is the rule the business already has for free.
     #
-    # TODO(you): train the recency-only baseline and score it on the SAME
-    # validation split, then assign baseline_proba below. It must be a trained
-    # model on one column, not a heuristic you invent here.
-    baseline_proba = train_recency_baseline(X_val, y_val)   # noqa: F821
     baseline_auc = roc_auc_score(y_val, baseline_proba)
     auc_vs_baseline = auc_roc - baseline_auc
 
-    # TODO(you): bootstrap a 95% CI on the LIFT. Resample the validation rows
-    # with replacement BOOTSTRAP_N times; on each replicate score BOTH models
-    # on the SAME resampled rows and record the difference in AUC. The CI is
-    # the 2.5th and 97.5th percentiles of those differences.
-    #
-    # Resample once per replicate and score both models on it. Resampling the
-    # two models independently breaks the pairing and inflates the interval.
-    # Skip replicates where the resample is single-class - AUC is undefined.
-    lift_ci_low, lift_ci_high = bootstrap_lift_ci(   # noqa: F821
+    lift_ci_low, lift_ci_high = bootstrap_lift_ci(
         y_val, y_pred_proba, baseline_proba)
 
     metrics = {
@@ -502,7 +557,8 @@ def main():
     model = train_model(X_train, y_train, X_val, y_val, args)
 
     # 5. Evaluate
-    metrics = evaluate_model(model, X_val, y_val)
+    baseline_proba = train_recency_baseline(X_train, y_train, X_val)
+    metrics = evaluate_model(model, X_val, y_val, baseline_proba)
 
     # 6. Save and register
     save_and_register_model(model, metrics, args)
