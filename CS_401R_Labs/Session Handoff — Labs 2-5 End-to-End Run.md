@@ -7,6 +7,9 @@ purpose: The Labs 2→5 end-to-end run finally executed. It passed. It also foun
 
 # Session Handoff — Labs 2→5 End-to-End Run
 
+
+> **⚠ Superseded 2026-08-03 by [[Session Handoff — Dataset Rebase & Gate Redesign]]** on metrics, gates, dataset size and defects 39–48. Every model figure in this note — including the 0.7276 set it introduced as canonical — came from the retired 1,200-customer dataset on a non-deterministic Athena pull and does not reproduce. The AWS-mechanics observations still stand. Retained as the record of how defect 45 was found.
+
 > **Read this before the next session.** It supersedes [[Session Handoff — Lab 7 to Course Close]] on the items below and leaves the rest of that note standing.
 >
 > **Update 2026-08-01 (third session): threads 1 and 2 below are CLOSED.** Defects 39, 40 and 41 are fixed and pushed. See "Closed 2026-08-01 (third session)". One residual: the Lab 3 slice AUCs were never re-measured.
