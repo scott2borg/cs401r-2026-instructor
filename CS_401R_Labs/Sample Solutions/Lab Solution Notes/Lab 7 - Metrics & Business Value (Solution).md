@@ -104,15 +104,17 @@ Scale: 2.1M customers × 52/12 = **9,100,000 predictions/month**.
 | Inference compute | 730.5 hr × $0.115 (persistent `ml.m5.large`) | **$84.01** |
 | Feature Store online reads | 9.1M RU × $0.25/M | **$2.28** |
 | Amortized training | 0.25 hr × $0.115, monthly retrain | **$0.03** |
-| Glue allocated to churn | see below | **$21.85** |
-| **Total** | | **$108.16** |
+| Glue allocated to churn | see below | **$0.60** |
+| **Total** | | **$86.92** |
 
-**$108.16 / 9,100 = $0.0119 → `$0.012 per 1,000 predictions`.**
+**$86.92 / 9,100 = $0.00955 → `$0.010 per 1,000 predictions`.**
 
 Glue scale derivation — this is where students diverge, and it is the graded judgment:
-$3.2B revenue ÷ ~$96 blended AOV = 33.3M transactions/yr = **641,026/week**. Lab dataset = 19,500 rows → scale factor **32.9x**. ETL 1.0311 × 32.9 = 33.9 DPU-hr, crawler ~0.48 (near-constant) → 34.4 DPU-hr × $0.44 = **$15.12/run** × 4.333 runs/mo = **$65.54/mo**, ÷ 3 models served = **$21.85**.
+$3.2B revenue ÷ ~$96 blended AOV = 33.3M transactions/yr = **641,026/week**. Lab dataset = 163,255 rows → scale factor **3.93x**. Measured ETL per run = 242 DPU-s (transform) + 188 DPU-s (feature-engineer) = **0.1194 DPU-hr**; × 3.93 = 0.469 DPU-hr, crawler ~0.48 (near-constant) → 0.949 DPU-hr × $0.44 = **$0.418/run** × 4.333 runs/mo = **$1.81/mo**, ÷ 3 models served = **$0.60**.
 
-**Accept $0.008–$0.020 per 1,000 with shown work.** The scale factor is a defensible judgment and different AOV or allocation choices move it. **Reject** any answer that applies the raw 1.51 lab DPU-hours to a 2.1M-customer business without a scale factor — that is a 33x understatement and the spec warns about it directly.
+> **Corrected 2026-08-03.** The previous derivation used `ETL 1.0311 DPU-hr × 32.9`. That 1.0311 is **July's cumulative Cost Explorer usage across every Glue run that month**, not the cost of one ETL pass — so it was a monthly total multiplied by a per-run scale factor. The figure above uses `DPUSeconds` reported by `get-job-runs` for a single measured pass on the 10,000-customer dataset. Both the numerator and the scale factor changed, which is why Glue drops from $21.85 to $0.60.
+
+**Accept $0.006–$0.015 per 1,000 with shown work.** The scale factor is a defensible judgment and different AOV or allocation choices move it. **Reject** any answer that applies raw lab DPU-hours to a 2.1M-customer business without a scale factor — that is now a ~3.9x understatement rather than 33x, so the lesson is weaker than it was, but the reasoning error is identical. Also reject any answer that scales a *monthly usage total* as though it were a per-run cost; that is the exact mistake this answer key made until 2026-08-03.
 
 The amortized-training row is a trap with a correct answer: students who trained locally via `models/churn/train_local.py` will get $0.00. Full credit **only if they say why** — the cost moved to their laptop, i.e. into human labor, and did not disappear. A silent $0 loses part of the 8 points.
 
@@ -122,15 +124,15 @@ The amortized-training row is a trap with a correct answer: students who trained
 |---|---|---|
 | Compute (training) | **$1** | Churn retrain; XGBoost on 2.1M × 11 features is minutes |
 | Compute (inference) | **$84** | Churn endpoint 24×7 |
-| Data pipeline, storage and transfer | **$68** | Glue $65.54 + S3 50 GB $1.15 + Feature Store online 2.1 GB $0.95 |
+| Data pipeline, storage and transfer | **$4** | Glue $1.81 + S3 50 GB $1.15 + Feature Store online 2.1 GB $0.95 |
 | Third-party APIs (Bedrock) | **$13,705** | Offers $9,555 + agent $4,150 |
 | Human labor | **$6,400** | 80 hr/mo × $80 |
 | Platform and tooling | **$46** | NAT $32.87, IPv4 $3.65, metrics $3.00, KMS $3, alarms $1.50, Secrets $0.80, CodeBuild $1 |
-| **Total** | **$20,303** | **23.9% of the $85,000 budget** |
+| **Total** | **$20,240** | **23.8% of the $85,000 budget** |
 
 Bedrock basis: offers = 10% of 2.1M weekly = 910,000/mo × (2.0k in × $0.003 + 0.3k out × $0.015) = $9,555. Agent = 14,000 contacts/day × 50% automated × 30.4 days = 212,800/mo × (4.0k in × $0.003 + 0.5k out × $0.015) = $4,150. Token counts and the $15/M output rate are **assumptions the student must state** — the Price List API has no Bedrock output-token pricing in us-east-1.
 
-**The finding worth points:** Bedrock is **67.5%** of platform cost. The churn model — six labs of Terraform, Feature Store, CI/CD, canary deployment and five-layer monitoring — is **0.4%**. Two API-based systems that required no infrastructure at all dominate the budget by more than two orders of magnitude. Any student who builds this table and does not remark on it has produced a spreadsheet rather than an analysis.
+**The finding worth points:** Bedrock is **67.7%** of platform cost. The churn model — six labs of Terraform, Feature Store, CI/CD, canary deployment and five-layer monitoring — is **0.4%**. Two API-based systems that required no infrastructure at all dominate the budget by more than two orders of magnitude. Any student who builds this table and does not remark on it has produced a spreadsheet rather than an analysis.
 
 Second finding: total is under a quarter of the budget. Correct response is *"cost is not the binding constraint on this platform; measurement is,"* not *"we have $65,000 of headroom."*
 
@@ -201,10 +203,10 @@ What is actually achievable at a plausible 12% save rate:
 |---|---|
 | Customers saved per year | 14,089 |
 | Value at $340 LTV | **$4.79M/yr** |
-| Platform cost | $20,303/mo = **$0.24M/yr** |
+| Platform cost | $20,240/mo = **$0.24M/yr** |
 | **ROI** | **19.7x** |
 | Churn rate moves | 18% → **17.33%** (0.67 pp) |
-| **Break-even save rate** | **0.610%** — 717 customers/yr |
+| **Break-even save rate** | **0.608%** — 714 customers/yr |
 
 **Both statements are true and the scorecard must carry both:**
 
@@ -302,14 +304,15 @@ preds = CUST * 52/12                                   # 9,100,000/mo
 inf   = HRS * 0.115                                    # $84.01
 fs    = preds * 0.25/1e6                               # $2.28
 train = 0.25 * 0.115                                   # $0.03
-scale = (3.2e9/96/52) / 19_500                         # 32.9x
-glue  = (1.031111*scale + 0.478611) * 0.44 * 52/12     # $65.54/mo
-churn_total = inf + fs + train + glue/3                # $108.16
-per_1k = churn_total/preds*1000                        # $0.0119
+scale = (3.2e9/96/52) / 163_255                        # 3.93x
+etl   = (242 + 188)/3600                               # 0.1194 DPU-hr/run, measured
+glue  = (etl*scale + 0.478611) * 0.44 * 52/12          # $1.81/mo
+churn_total = inf + fs + train + glue/3                # $86.92
+per_1k = churn_total/preds*1000                        # $0.00955
 
 capt = CUST*0.18*0.3106                                # 117,407 churners in decile
 required_save = (CUST*0.04)/capt                       # 0.715  <-- the finding
-breakeven = (20_303*12)/(capt*340)                     # 0.00610
+breakeven = (20_240*12)/(capt*340)                     # 0.00608
 ```
 
 Usage figures from `aws ce get-cost-and-usage --metrics UsageQuantity --group-by Type=DIMENSION,Key=USAGE_TYPE`, July 2026, account `711457211658`. Rates from `aws pricing get-products`, us-east-1, 2026-08-01.
