@@ -174,7 +174,15 @@ Mount three inputs: your capture prefix to `/opt/ml/processing/input/endpoint`, 
 
 **Capture is partitioned per variant** — `datacapture/<endpoint>/<variant>/<yyyy>/<mm>/<dd>/<hh>/`. If you ran a two-variant canary in Lab 5, point the analyzer at one variant's prefix, and say in your write-up which one and why.
 
-Reference numbers from a verified run: a baseline over 1,200 customers profiled 11 features (`days_since_last_purchase` mean 58.80, `completeness` 1.0, `inferred_type` `Fractional`); the analysis run consumed 174 captured records and returned `"violations": []`. Your numbers will differ; the *shape* of the output should not.
+Reference numbers, re-verified 2026-08-03 on the 10,000-customer dataset: a baseline over **9,999** customers profiled 11 features (`days_since_last_purchase` mean **42.69**, std 59.22, `completeness` 1.0, `inferred_type` `Fractional`), taking **8 m 44 s** on `ml.t3.large`. Your numbers will differ; the *shape* of the output should not.
+
+> **Two things will make your analysis job fail in ways the error message does not explain.**
+>
+> **1. Your baseline needs the same column count as your capture.** `sagemakerCaptureJson` reads `endpointInput` **and** `endpointOutput`, so an 11-feature model produces **12** captured columns — the features plus the prediction. Baseline on the 11 features alone and you get `extra_column_check: current dataset 12, baseline constraints 11`, which looks like a data problem and is a baseline-construction problem. Profile features **plus** your model's scores.
+>
+> **2. Do not invoke with batched rows if you intend to monitor the traffic.** Send more than one CSV row per request and the whole payload is captured as one string; the analyzer parses it as a single column and fails with `missing_column_check: current dataset 1, baseline constraints 12`. Verified both ways against the same baseline — 60 single-row records parsed correctly, 211 batched records did not. Nothing in the error mentions batching. Score one row per request.
+>
+> **3. Use at least ~500 predictions in the comparison window.** 60 captured records against a 9,999-record baseline produced **8 drift violations** at distances of 0.215–0.762 against a 0.1 threshold — on data drawn from the same distribution as the baseline. Too small a window manufactures drift that is not there.
 
 **Rubric:**
 

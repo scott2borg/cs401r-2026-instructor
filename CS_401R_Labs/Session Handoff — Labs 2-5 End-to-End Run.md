@@ -64,7 +64,7 @@ Both scripts use `seed=42` and `test_size=0.30`, so this is not split noise — 
 
 ## Defects found 2026-08-01 (second session)
 
-Continuing the running list, now at 47.
+Continuing the running list, now at 48.
 
 | # | Defect | Impact |
 |---|---|---|
@@ -77,6 +77,7 @@ Continuing the running list, now at 47.
 | 45 | **The Lab 3 reference metrics were never reproducible by construction.** `load_from_offline_store()` had no `ORDER BY` on its outer `SELECT`. Athena parallelises the scan and returns rows in whatever order the splits finish; `train_test_split(random_state=42)` is deterministic only for a *given* row order. Same data, different partition, different metrics, every run | Four runs on identical data measured AUC **0.7276–0.7431** and Platinum slice AUC **0.430–0.700**. Fixed with `ORDER BY customer_id`, verified byte-identical across three runs. **But the fix pins the pipeline to one arbitrary draw — and that draw is AUC 0.6919, which fails the course's own ≥0.72 gate.** A 200-split sweep shows the reference model fails that gate on **58%** of splits and the ≥0.03 lift gate on **21%**. The Platinum finding is worse-than-random on only **34.9%** of splits. See `docs/lab3-metric-stability.md` |
 | 46 | **`canary_deploy_realtime.py` failed for every student before its first AWS call.** `--sample-csv` defaulted to the bare string `sample.csv`, resolved against the caller's cwd; Lab 5 tells students to run from the repo root and nothing in the repo creates that file | Guaranteed `FileNotFoundError` on the first Lab 5 deployment attempt. Hit directly during the 10k run. Fixed: default resolves against the script directory and a `sample.csv` ships beside it |
 | 47 | **Lab 4's starter test gates never matched Lab 3's.** `test_model.py` required precision@10 ≥ 0.40 and recall@10 ≥ 0.35; Lab 3 has always specified 0.50 and 0.25. The Lab 3 skeleton's "baseline" was `np.full_like(proba, y.mean())` — a constant predictor whose AUC is exactly 0.5 by construction | A model could pass Lab 3 and fail Lab 4 CI, or the reverse. Any student using the skeleton as shipped compared against a coin flip rather than the recency rule the lab specifies, producing a "lift" near +0.27 that means nothing. Both fixed |
+| 48 | **Batched invocation silently breaks Model Monitor.** More than one CSV row per request is captured as a single `endpointInput.data` string; the analyzer parses it as **1 column** and fails `missing_column_check`. Verified against an identical baseline: 60 single-row records parsed correctly at 12 columns, 211 batched records (121 rows each) collapsed to 1 | Any student who scores in batches gets a schema error instead of drift results, and nothing in the message mentions batching. Documented in Lab 6, the master, the solution note and `docs/lab6-runbook.md` |
 
 Defect 43 joins 37, 38 and the `--query`-per-page bug. The rule stands and now has a fourth data point: **never accept a success response as an answer to a question you did not literally ask.**
 

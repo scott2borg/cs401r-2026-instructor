@@ -31,7 +31,7 @@ Executed against account `711457211658`, `us-east-1`, on **2026-07-31**.
 | Endpoint | `ml.t2.medium`, two variants (champion/canary), data capture on |
 | create-endpoint → InService | **7 min 03 s** |
 | Observed traffic split at 9:1 | **174 champion / 26 canary** over 200 invocations |
-| Baseline job (`ml.t3.large`) | **5 min 46 s** billed, **$0.010**, 11 features over 1,200 customers |
+| Baseline job (`ml.t3.large`) | **8 min 44 s**, 11 features over 9,999 customers (2026-08-03, 10k dataset) |
 | Analyzer run over captured data | **174 records analysed**, `"violations": []` |
 | Dashboard | 15 widgets, 5 layers, **zero** validation messages |
 | Custom metrics | `ChurnAlertVolume`, `DriftDetected`, `DriftViolationCount` |
@@ -172,7 +172,9 @@ aws s3 ls s3://northstar-dev-data-<account>/monitoring/baseline/
 aws s3 ls s3://northstar-dev-data-<account>/monitoring/reports/
 ```
 
-Reference baseline: 11 features over 1,200 customers, `days_since_last_purchase` mean 58.80, `completeness` 1.0, `inferred_type` `Fractional`. Reference analysis: 174 records, `"violations": []`.
+Reference baseline: 11 features over **9,999** customers, `days_since_last_purchase` mean **42.69** (std 59.22), `completeness` 1.0, `inferred_type` `Fractional`. Baseline job 8 m 44 s, analysis job 8 m 44 s on `ml.t3.large`; 1,060 predictions produced 271 captured records.
+
+**Two failure modes to expect in submissions, both verified 2026-08-03.** A baseline built from 11 feature columns fails `extra_column_check` against 12 captured columns — capture includes the prediction. And any student who invoked with batched rows gets `missing_column_check: current dataset 1` regardless of baseline, because a multi-row payload is captured as one string. Neither error names its real cause; treat both as setup issues, not analysis failures. Separately, a comparison window under ~500 records will show drift violations on clean data — 60 records produced 8.
 
 **Zero violations is a PASS.** If a student replays similar inputs, the observed distribution matches the baseline and there is nothing to report. An empty violations list proves the comparison ran. Students who fabricate drift to "get a result" should be marked down for the fabrication, not rewarded for the output.
 
