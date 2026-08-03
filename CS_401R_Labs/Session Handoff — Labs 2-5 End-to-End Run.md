@@ -64,7 +64,7 @@ Both scripts use `seed=42` and `test_size=0.30`, so this is not split noise — 
 
 ## Defects found 2026-08-01 (second session)
 
-Continuing the running list, now at 44.
+Continuing the running list, now at 45.
 
 | # | Defect | Impact |
 |---|---|---|
@@ -74,6 +74,7 @@ Continuing the running list, now at 44.
 | 42 | **`generate_presentations.py` does not build the shipped decks.** It writes `Presentations/L01_Course_Introduction.pptx`; the decks in use are `Presentations/PowerPoint/CS-401R-4-F26-L01.pptx`. Nothing in the repo produces that name, and L01 is 41 MB against the generator's 358 KB | The previous handoff's suggested move #2 — "rebuild and re-upload the decks" — would have **overwritten heavily hand-edited decks with generator output**. Do not run that generator expecting to refresh what students see |
 | 43 | **Terraform reports an SNS email subscription as confirmed when it is not.** `aws_sns_topic_subscription.arn` returned a well-formed ARN for all four topics; `aws sns list-subscriptions-by-topic` returned the literal `PendingConfirmation` for the same four | Anything that reads the Terraform attribute records the alert path as live when no mail can be delivered. **Fourth instance** of the project's recurring pattern: a call that answers a question you did not ask and reports success |
 | 44 | **The only durable copy of the evaluation metrics lived inside the bucket teardown deletes.** `train_reference.py` wrote the full metrics blob — including `slices_by_tier` — to `s3://<data-bucket>/artifacts/evaluations/latest/`. That bucket is `force_destroy = true`. The Model Registry carried only four scalars and no slice data | This is why the 2026-08-01 slice AUCs are unrecoverable. Nothing on the account held a second copy, so a routine `terraform destroy` silently destroyed the evidence behind Lab 3's highest-value teaching point. **Fixed 2026-08-01** — see below |
+| 45 | **The Lab 3 reference metrics were never reproducible by construction.** `load_from_offline_store()` had no `ORDER BY` on its outer `SELECT`. Athena parallelises the scan and returns rows in whatever order the splits finish; `train_test_split(random_state=42)` is deterministic only for a *given* row order. Same data, different partition, different metrics, every run | Four runs on identical data measured AUC **0.7276–0.7431** and Platinum slice AUC **0.430–0.700**. Fixed with `ORDER BY customer_id`, verified byte-identical across three runs. **But the fix pins the pipeline to one arbitrary draw — and that draw is AUC 0.6919, which fails the course's own ≥0.72 gate.** A 200-split sweep shows the reference model fails that gate on **58%** of splits and the ≥0.03 lift gate on **21%**. The Platinum finding is worse-than-random on only **34.9%** of splits. See `docs/lab3-metric-stability.md` |
 
 Defect 43 joins 37, 38 and the `--query`-per-page bug. The rule stands and now has a fourth data point: **never accept a success response as an answer to a question you did not literally ask.**
 
@@ -147,7 +148,9 @@ Verified locally with a synthetic metrics blob: default path resolves into the r
 
 ## Open threads, re-prioritised
 
-1. **Re-measure the slice AUCs.** The last figure in the course that no current run reproduces. **Bundle it with thread 2** — Lab 4 CodePipeline needs the same infrastructure standing, so one apply pays the NAT once instead of twice. `train_reference.py` now persists slices automatically (defect 44, fixed), so the run is: apply → CSV → crawler → both Glue jobs → ~5 min hydration → `python models/churn/train_reference.py` → destroy. The metrics land in `docs/lab3-evaluation-metrics.json` and survive the teardown. Then update the Lab 3 solution note's slice table and drop its "pending re-measurement" banner. Do it before anyone grades Lab 3 Task 1 (due Oct 17 — no urgency, but do not let it reach a TA).
+1. **Decide how Lab 3 reports metrics at all (defect 45).** Supersedes the old "re-measure the slice AUCs" item — re-measuring was attempted 2026-08-02 and produced the finding instead. The measurement is done and durable (`docs/lab3-metric-stability.md`, dataset captured at `data/lab3-reference-dataset.csv` so the sweep reruns with no AWS). **Nothing has been re-propagated to the labs on purpose** — publishing another single draw repeats the error. This is a course-design decision, and it touches Labs 3, 4, 6 and 7. Options are in "The decision waiting on you" below.
+
+   ~~Re-measure the slice AUCs.~~ The last figure in the course that no current run reproduces. **Bundle it with thread 2** — Lab 4 CodePipeline needs the same infrastructure standing, so one apply pays the NAT once instead of twice. `train_reference.py` now persists slices automatically (defect 44, fixed), so the run is: apply → CSV → crawler → both Glue jobs → ~5 min hydration → `python models/churn/train_reference.py` → destroy. The metrics land in `docs/lab3-evaluation-metrics.json` and survive the teardown. Then update the Lab 3 solution note's slice table and drop its "pending re-measurement" banner. Do it before anyone grades Lab 3 Task 1 (due Oct 17 — no urgency, but do not let it reach a TA).
 2. **Lab 4 CodePipeline** — never run. Unblocked; needs a CodeStar connection and `pipeline.yaml` deployed. Now the largest genuinely unexecuted path in the course.
 4. **Canvas re-upload** — needs `CANVAS_API_TOKEN` / `CANVAS_COURSE_ID`.
 4. **Bedrock quotas still 0** — blocks Lab 3 Track B/C only. Unchanged. Still unanswered whether all 30 student accounts need individual grants; assume yes.
@@ -165,3 +168,17 @@ Verified locally with a synthetic metrics blob: default path resolves into the r
 - Setting `DataCaptureConfig.DestinationS3Uri` to `s3://bucket/datacapture/<endpoint>` double-nests the prefix — SageMaker appends the endpoint name itself. Point it at `s3://bucket/datacapture` to get the documented layout.
 - AWS spend for this session is expected to be small but **non-zero** — the NAT Gateway is the one component here Free Tier does not absorb. Check Cost Explorer for 2026-08 before assuming $0.00 the way July's data invited.
 - **Committed and pushed 2026-08-01** to both `northstar-ai-platform` and `cs401r-2026-instructor`, including the previously uncommitted `alarms.tf`. The three `.pptx` files could not be committed — `Presentations/PowerPoint/` is gitignored.
+
+---
+
+## The decision waiting on you (defect 45)
+
+A 360-row holdout cannot support a point estimate. Three things need deciding, and they interact:
+
+**1. How metrics are reported.** Single split (status quo, now deterministic but arbitrary) vs. repeated stratified CV reporting mean ± SD. CV shrinks the standard error by roughly √k and is what the data supports. It changes `train_reference.py`, the Lab 3 evaluation-report table, the Lab 4 CI gate, and what students are asked to submit.
+
+**2. Where the gates go.** Measured: AUC mean 0.7120 (sd 0.0291), lift mean 0.0604 (sd 0.0328). The ≥0.72 AUC gate fails on 58% of splits and the ≥0.03 lift gate on 21% — the lift threshold is smaller than the metric's own standard deviation. P@10% (≥0.50) and R@10% (≥0.25) fail on 1% and 2.5% and are well calibrated; leave them alone.
+
+**3. What happens to the Platinum item.** It is worse-than-random on 34.9% of splits and undefined on 5.5%. As written it is a coin flip. The honest replacement is arguably a better lesson than the original: *a slice of ~33 customers with ~2 positives cannot support any claim; report the interval and refuse to conclude.* That preserves the 5 points and teaches something truer, but it is a rewrite of Lab 3's centrepiece, not an edit.
+
+**Downstream if any of this moves:** Lab 4's CI quality gate reuses the same thresholds; Lab 6 Task 4's SLO justification and Lab 7 Task 3's graded arithmetic both consume single-draw values.
