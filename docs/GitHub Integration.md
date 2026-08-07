@@ -94,7 +94,11 @@ Open the file, confirm it contains no solutions, and add its path to `ALLOW`. Re
 
 `~/northstar-ai-platform` is a **separate repo with its own remote.** It is authoritative.
 
-The old copy at `CS_401R_Labs/Sample Solutions/northstar-ai-platform/` is **retired and gitignored.** It had silently drifted: different `.gitignore`, missing `Dockerfile.terraform`, `Requirements.txt` vs `requirements.txt`. Do not recreate it. To browse the reference implementation, open the real repo.
+The old copy at `CS_401R_Labs/Sample Solutions/northstar-ai-platform/` was **retired and gitignored**, and is now **deleted (2026-08-07)**. It had silently drifted: different `.gitignore`, missing `Dockerfile.terraform`, `Requirements.txt` vs `requirements.txt`. Do not recreate it. To browse the reference implementation, open the real repo.
+
+Before deletion, every file was hashed against the live repo. The 20 whose content existed **nowhere else** — including four worked student deliverables (`docs/lab1-architecture-decision-record.md`, `lab3-model-design.md`, `lab4-xops-assessment.md`, `lab7-value-scorecard.md`) — were moved to `CS_401R_Labs/Sample Solutions/_legacy-reference-artifacts/`, which is tracked and outside the publish `ALLOW` list. See the README there.
+
+> **This tree was resynced by mistake on 2026-08-07** because `CLAUDE.md` still described it as "a copy kept in sync", contradicting this file. `CLAUDE.md` has been corrected. **This document is authoritative on repo layout.** The gitignore rule is retained as a tripwire: if that path reappears, someone has recreated the copy.
 
 ## Known failure modes
 
