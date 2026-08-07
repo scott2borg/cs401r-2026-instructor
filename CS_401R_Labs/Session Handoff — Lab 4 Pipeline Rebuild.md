@@ -7,7 +7,7 @@ purpose: Thread 1 recorded Lab 4 CodePipeline as "never run". It was not runnabl
 
 # Session Handoff — Lab 4 Pipeline Rebuild
 
-> **Read this before the next session.** It supersedes [[Session Handoff — Labs Starter Kit Rebase]] on **open threads 1, 6, 7 and 8** and adds defects **55–64**. Everything that note says about the canonical metrics, the gate redesign, the dataset rebase, the Model Monitor traps and defects 49–54 **still stands and is unchanged**.
+> **Read this before the next session.** It supersedes [[Session Handoff — Labs Starter Kit Rebase]] on **open threads 1, 6, 7 and 8** and adds defects **55–64**. Everything that note says about the canonical metrics, the gate redesign, the dataset rebase.
 >
 > **The headline: thread 1 said the Lab 4 pipeline had "never been run." That was the wrong diagnosis. It could not run.** Six independent blockers, every one of them in an artifact a student receives, none requiring an AWS session to find. **No AWS session was spent.**
 

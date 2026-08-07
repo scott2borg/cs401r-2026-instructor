@@ -58,13 +58,13 @@ Slice evaluation, 3,000-row test set:
 
 ## Defects 44–48
 
-| # | Defect | Status |
-|---|---|---|
-| 44 | **Evaluation metrics lived only inside the bucket teardown deletes.** The full blob, including slices, went to `s3://<data-bucket>/artifacts/evaluations/latest/` on a `force_destroy = true` bucket. The registry carried four scalars and no slice data | **Fixed.** `persist_metrics()` runs before registration and regardless of `--skip-register`, writing to the repo, the tfstate bucket, and the data bucket. Registry metadata went 4 → 16 pairs including `slice_worst_tier` / `slice_worst_auc` |
-| 45 | **The reference metrics were never reproducible by construction.** No `ORDER BY` on the outer Athena `SELECT`; Athena returns rows in whatever order the parallel splits finish, and `train_test_split` is deterministic only for a given row order. Same data produced AUC 0.7276–0.7431 and Platinum 0.430–0.700 across runs | **Fixed** with `ORDER BY customer_id`. Verified byte-identical across three consecutive runs and again across a full rebuild |
-| 46 | **`canary_deploy_realtime.py` failed for every student before its first AWS call.** `--sample-csv` defaulted to a cwd-relative `sample.csv` that nothing in the repo creates, while Lab 5 says to run from the repo root | **Fixed.** Default resolves against the script directory; a `sample.csv` ships beside it. Confirmed by a later deploy that passed no flag |
-| 47 | **The starter kits taught the wrong comparison.** Lab 4's `test_model.py` required P@10 ≥ 0.40 / R@10 ≥ 0.35 while Lab 3 specified 0.50 / 0.25. The Lab 3 skeleton's "baseline" was `np.full_like(proba, y.mean())` — a constant predictor whose AUC is 0.5 by construction | **Fixed.** Gates aligned, AUC gate removed, and the skeleton now ships a real recency-only baseline plus the bootstrap CI. Verified: the skeleton reproduces `train_reference.py` exactly |
-| 48 | **Batched invocation silently breaks Model Monitor.** More than one CSV row per request is captured as a single `endpointInput.data` string; the analyzer parses it as **1 column** and fails `missing_column_check`. Nothing in the error mentions batching | **Documented**, not fixable at the API level. Isolated against an identical baseline: 60 single-row records parsed at 12 columns, 211 batched records collapsed to 1 |
+| #   | Defect                                                                                                                                                                                                                                                                                                                         | Status                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 44  | **Evaluation metrics lived only inside the bucket teardown deletes.** The full blob, including slices, went to `s3://<data-bucket>/artifacts/evaluations/latest/` on a `force_destroy = true` bucket. The registry carried four scalars and no slice data                                                                      | **Fixed.** `persist_metrics()` runs before registration and regardless of `--skip-register`, writing to the repo, the tfstate bucket, and the data bucket. Registry metadata went 4 → 16 pairs including `slice_worst_tier` / `slice_worst_auc` |
+| 45  | **The reference metrics were never reproducible by construction.** No `ORDER BY` on the outer Athena `SELECT`; Athena returns rows in whatever order the parallel splits finish, and `train_test_split` is deterministic only for a given row order. Same data produced AUC 0.7276–0.7431 and Platinum 0.430–0.700 across runs | **Fixed** with `ORDER BY customer_id`. Verified byte-identical across three consecutive runs and again across a full rebuild                                                                                                                    |
+| 46  | **`canary_deploy_realtime.py` failed for every student before its first AWS call.** `--sample-csv` defaulted to a cwd-relative `sample.csv` that nothing in the repo creates, while Lab 5 says to run from the repo root                                                                                                       | **Fixed.** Default resolves against the script directory; a `sample.csv` ships beside it. Confirmed by a later deploy that passed no flag                                                                                                       |
+| 47  | **The starter kits taught the wrong comparison.** Lab 4's `test_model.py` required P@10 ≥ 0.40 / R@10 ≥ 0.35 while Lab 3 specified 0.50 / 0.25. The Lab 3 skeleton's "baseline" was `np.full_like(proba, y.mean())` — a constant predictor whose AUC is 0.5 by construction                                                    | **Fixed.** Gates aligned, AUC gate removed, and the skeleton now ships a real recency-only baseline plus the bootstrap CI. Verified: the skeleton reproduces `train_reference.py` exactly                                                       |
+
 
 ---
 
@@ -72,29 +72,22 @@ Slice evaluation, 3,000-row test set:
 
 Three full runs on account `711457211658`, us-east-1, Studio Domain disabled.
 
-| Stage | 10,000 customers | 1,200 customers |
-|---|---|---|
-| `terraform apply` | 43 added, 2 m 16 s | 2 m 16 s |
-| Crawler | SUCCEEDED, 37.2 s, table `customers` | 54 s |
-| Glue transform | 157,627 rows, **121 s / 242 DPU-s** | 139 s / 278 DPU-s |
-| Glue feature-engineer | 9,999 rows, 0 nulls, **94 s / 188 DPU-s** | 106 s / 212 DPU-s |
-| Feature Store ingest | 9,999 records, 0 failures | 1,200 |
-| Offline store hydration | **3 m 53 s / 4 m 14 s** | 4 m 34 s |
-| Endpoint `InService` | **423 s**, `ml.t2.medium`, 2 variants | 404 s |
-| Invoke | 1,000-row batch in 1.4 s; singles p50 415 ms / p95 457 ms | p50 375 / p95 461 |
-| Data capture | **32 s** behind invocation | ~4 min |
-| Model Monitor baseline | **8 m 44 s** (11-col) / **9 m 44 s** (12-col), `ml.t3.large` | 5 m 46 s |
-| Model Monitor analysis | **8 m 44 s** | — |
-| `terraform destroy` | 43 destroyed, 1 m 14 s | — |
-| All-region sweep, 8 regions | all zero | — |
+| Stage                       | 10,000 customers                                          | 1,200 customers   |
+| --------------------------- | --------------------------------------------------------- | ----------------- |
+| `terraform apply`           | 43 added, 2 m 16 s                                        | 2 m 16 s          |
+| Crawler                     | SUCCEEDED, 37.2 s, table `customers`                      | 54 s              |
+| Glue transform              | 157,627 rows, **121 s / 242 DPU-s**                       | 139 s / 278 DPU-s |
+| Glue feature-engineer       | 9,999 rows, 0 nulls, **94 s / 188 DPU-s**                 | 106 s / 212 DPU-s |
+| Feature Store ingest        | 9,999 records, 0 failures                                 | 1,200             |
+| Offline store hydration     | **3 m 53 s / 4 m 14 s**                                   | 4 m 34 s          |
+| Endpoint `InService`        | **423 s**, `ml.t2.medium`, 2 variants                     | 404 s             |
+| Invoke                      | 1,000-row batch in 1.4 s; singles p50 415 ms / p95 457 ms | p50 375 / p95 461 |
+| Data capture                | **32 s** behind invocation                                | ~4 min            |
+| `terraform destroy`         | 43 destroyed, 1 m 14 s                                    | —                 |
+| All-region sweep, 8 regions | all zero                                                  | —                 |
 
 Storage after a run: `raw/` 13,582,469 B (1 object), `processed/` 3,856,995 B (4), `features/` 317,006 B (2).
 
-### Three Model Monitor traps, all verified
-
-1. **The baseline must have the same column count as the capture.** `sagemakerCaptureJson` reads `endpointInput` **and** `endpointOutput`, so an 11-feature model captures **12** columns. Baseline on 11 and you get `extra_column_check`, which reads like a data problem and is a baseline problem.
-2. **Batched invocation collapses to 1 column** (defect 48). Score one row per request for monitored traffic.
-3. **A window under ~500 records manufactures drift.** 60 captured records against the 9,999-record baseline produced **8** `baseline_drift_check` violations at distances 0.215–0.762 against a 0.1 threshold — on data drawn from the baseline distribution. This is why the runbook says ≥ 500; it is now a measurement, not a round number.
 
 ---
 

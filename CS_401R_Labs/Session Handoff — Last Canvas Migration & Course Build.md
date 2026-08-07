@@ -131,14 +131,13 @@ every call site.
    Pre-Lab 4 gets students filing in September, which helps but does not remove
    the dependency. Four sessions have proven the code works on an account that
    already has the quota.
-3. **Lab 5 canary/rollback and Lab 6 Model Monitor** never re-run at 10k.
-4. **Model package v7** still `Approved` with a dead `ModelDataUrl`.
-5. **Publish** — modules are unpublished; presentation schedule (student finals)
+3. **Model package v7** still `Approved` with a dead `ModelDataUrl`.
+4. **Publish** — modules are unpublished; presentation schedule (student finals)
    still to post by Dec 1.
-6. ~~Revoke the Canvas API token~~ — **done 2026-08-06.** The token exposed in
+5. ~~Revoke the Canvas API token~~ — **done 2026-08-06.** The token exposed in
    chat on 2026-08-05 has been revoked. Mint a fresh one for the next run and
    use the `printf`/`read -rs` form in the runbook.
-7. Vault copy under `Sample Solutions/` still stale and gitignored.
+6. Vault copy under `Sample Solutions/`is still stale and gitignored.
 
 ---
 

@@ -7,7 +7,7 @@ purpose: Lab 4 CodePipeline now runs Source → Build → ManualApproval on AWS.
 
 # Session Handoff — Lab 4 Runs End to End
 
-> **Read this before the next session.** It supersedes [[Session Handoff — Lab 4 Pipeline Rebuild]] and closes **threads 1, 6, 7 and 8**. It adds defects **65–72**. Everything the earlier notes say about the gate redesign, the dataset rebase and the Model Monitor traps still stands.
+> **Read this before the next session.** It supersedes [[Session Handoff — Lab 4 Pipeline Rebuild]] and closes **threads 1, 6, 7 and 8**. It adds defects **65–72**. Everything the earlier notes say about the gate redesign, the dataset rebase.
 >
 > **The headline: Lab 4 ran end to end for the first time — Source → Build → ManualApproval, all Succeeded.** It took **five builds** and six more defects to get there. **Two of them meant the model the pipeline registered could not be loaded by any modern XGBoost, and could not be deployed at all.** Both were invisible to every test that runs before an actual deploy.
 
@@ -99,7 +99,7 @@ serving test necessary rather than optional:
   **0.9917 / 0.9955 / 0.9968**. Clean separation, correct direction
 
 **Not done:** the Lab 5 canary/rollback path, auto-scaling, and the whole of
-Lab 6's Model Monitor re-run. Thread 2 stays open, narrowed.
+Lab 6's Evidently re-run. Thread 2 stays open, narrowed.
 
 ---
 
@@ -168,16 +168,17 @@ today's two NAT sessions are not in it yet). The separate **$1** budget is at
 ## Open threads
 
 1. ~~Lab 4 end-to-end~~ — **CLOSED.** Runs Source → Build → ManualApproval.
-2. **Lab 5 canary/rollback + auto-scaling, and Lab 6 Model Monitor, still not re-run.** Narrowed: the deploy-and-predict path is now verified at 10k, so what remains is specifically the canary weights, the rollback alarm, and the Lab 6 analyzer-as-processing-job.
-3. **NEW — `ArtifactsBucket` has no owner (defect 65).** It is a required parameter that nothing creates and no lab mentions. Either add it to the Terraform storage module or write the `create-bucket --versioning` step into Lab 4's prose. **A student cannot deploy the stack without it and has no way to know.**
-4. **Canvas re-upload.** Unchanged. Needs `CANVAS_API_TOKEN` / `CANVAS_COURSE_ID`.
-5. **NEW — Lab 3's published metrics need an XGBoost version stamp (defect 69).** See the section above. Also decide whether Lab 3's "SageMaker training jobs — fine, train freely" line survives, given default training quota is 0.
-6. **Bedrock quotas still 0.** Unchanged.
-7. **A7's anomaly alarm** still not demonstrable in a lab session. Unchanged.
-8. ~~Live `athena_query()`~~ — **CLOSED.**
-9. Vault copy under `Sample Solutions/` still stale and gitignored. Unchanged.
-10. **The quota decision is still outstanding, and is now the single biggest deliverability risk.** Lab 4's TrainingStep needs on-demand training quota (**default 0**; the reference account has 15, which is why it passed here). Lab 3 Track B/C needs Bedrock. That is ~60 individual support cases across 30 independent accounts. **Nothing in this session reduced that risk — it only proved the code works on an account that already has the quota.**
-11. **The metric vocabulary is still forked** (`baseline_auc_roc` vs `baseline_auc`, etc.). `train_sagemaker.py` still emits both as a deliberate shim. Unchanged.
+2. **Lab 5 canary/rollback + auto-scaling**
+3. Narrowed: the deploy-and-predict path is now verified at 10k, so what remains is specifically the canary weights, the rollback alarm, and the Lab 6 analyzer-as-processing-job.
+4. **NEW — `ArtifactsBucket` has no owner (defect 65).** It is a required parameter that nothing creates and no lab mentions. Either add it to the Terraform storage module or write the `create-bucket --versioning` step into Lab 4's prose. **A student cannot deploy the stack without it and has no way to know.**
+5. **Canvas re-upload.** Unchanged. Needs `CANVAS_API_TOKEN` / `CANVAS_COURSE_ID`.
+6. **NEW — Lab 3's published metrics need an XGBoost version stamp (defect 69).** See the section above. Also decide whether Lab 3's "SageMaker training jobs — fine, train freely" line survives, given default training quota is 0.
+7. **Bedrock quotas still 0.** Unchanged.
+8. **A7's anomaly alarm** still not demonstrable in a lab session. Unchanged.
+9. ~~Live `athena_query()`~~ — **CLOSED.**
+10. Vault copy under `Sample Solutions/` still stale and gitignored. Unchanged.
+11. **The quota decision is still outstanding, and is now the single biggest deliverability risk.** Lab 4's TrainingStep needs on-demand training quota (**default 0**; the reference account has 15, which is why it passed here). Lab 3 Track B/C needs Bedrock. That is ~60 individual support cases across 30 independent accounts. **Nothing in this session reduced that risk — it only proved the code works on an account that already has the quota.**
+12. **The metric vocabulary is still forked** (`baseline_auc_roc` vs `baseline_auc`, etc.). `train_sagemaker.py` still emits both as a deliberate shim. Unchanged.
 
 ---
 

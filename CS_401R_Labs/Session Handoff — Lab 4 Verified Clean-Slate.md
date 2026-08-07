@@ -139,7 +139,7 @@ is verified clean (0 occurrences). Nothing unmerged, no stale branches.
 
 1. ~~Lab 4 end-to-end~~ — **CLOSED**, and now verified from a clean slate.
 2. ~~Gate-failure alarm~~ — **CLOSED**, built and proven in both directions.
-3. **Lab 5 canary/rollback + auto-scaling, and Lab 6 Model Monitor, still not re-run.** Unchanged. The deploy-and-predict path is verified at 10k; the canary weights, rollback alarm and Lab 6 analyzer-as-processing-job are not.
+3. Unchanged. The deploy-and-predict path is verified at 10k; the canary weights, rollback alarm, and Lab 6 analyzer-as-processing-job are not.
 4. **`ArtifactsBucket` still has no owner (defect 65).** Documented in Lab 4 as a manual prerequisite and proven to work — but it is still a hand-run command, not infrastructure. Consider folding it into the Terraform storage module.
 5. **Canvas — partially pushed 2026-08-04.** Course **34609**. `canvas_builder.py --sync` (new additive mode) uploaded both pre-lab guides as HTML to Files → `Pre-Lab Guides/` (ids 13374053, 13374054), updated Lab 3 and Lab 4 in place, and created **Pre-Lab 3** and **Pre-Lab 4** as 0-point assignments due Sep 30. `verify_canvas_sync.py` returned all-pass: no duplicates, real file links in all four descriptions, both pre-labs placed in a module.
     - **Still not pushed: quiz questions.** Run `python pipeline/stage4_quizzes.py` (the idempotent one — *not* `upload_quiz_questions.py`, which appends and duplicates).

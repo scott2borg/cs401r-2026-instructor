@@ -10,10 +10,10 @@ purpose: Lab 5 canary/rollback verified at 10k, Lab 4 CodePipeline executed end 
 > **Read this before the next AWS session.** It supersedes
 > [[Session Handoff — Last Canvas Migration & Course Build]] on open threads 3
 > and 4, which are now closed. Everything that note says about Canvas, the
-> Canvas API behaviour and the lecture-deck figures **still stands unchanged**.
+> Canvas API behavior and the lecture-deck figures **still stands unchanged**.
 >
 > **The headline: two of the four things recorded as open were not what the note
-> said they were.** Lab 6's Model Monitor had already been re-run at 10k on
+> said they were.** Lab 6's Evidently AI had already been re-run at 10k on
 > 2026-08-03. Model package v7 was never `Approved`. Reading the live API first
 > would have closed both in five minutes.
 

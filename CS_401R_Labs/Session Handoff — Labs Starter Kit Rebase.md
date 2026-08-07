@@ -7,7 +7,7 @@ purpose: The gate redesign was validated against the reference implementation on
 
 # Session Handoff — Starter Kit Rebase
 
-> **Read this before the next session.** It supersedes [[Session Handoff — Dataset Rebase & Gate Redesign]] on the starter kits, Lab 6 cost figures, defects 44–48, and open threads 3, 7 and 8. Everything that note says about the canonical metrics, the gate design, the dataset rebase and the Model Monitor traps **still stands and was re-confirmed on AWS today**.
+> **Read this before the next session.** It supersedes [[Session Handoff — Dataset Rebase & Gate Redesign]] on the starter kits, Lab 6 cost figures, defects 44–48, and open threads 3, 7 and 8. Everything that note says about the canonical metrics, the gate design, the dataset rebase  **still stands and was re-confirmed on AWS today**.
 >
 > **The headline: the previous session fixed `train_reference.py` and never checked the file students actually run.** The shipped Lab 3 skeleton failed the promotion gate on **28% of splits**, its Athena query was still missing the `ORDER BY` that the entire previous session was about, and the Lab 2 starter kit still shipped the retired 1,200-customer dataset.
 
@@ -186,8 +186,7 @@ The vault is not version-controlled, so those edits are live on disk.
 
 Until 2026-08-03, all of this work lived on a branch called
 `lab5-deployment-verification`, and **`main` was 20 commits stale**. Everything
-from the Lab 5/6 verification, the discovery that Model Monitor schedules are
-closed to new accounts, defects 39–54, the entire dataset rebase and gate
+from the Lab 5/6 verification, defects 39–54, the entire dataset rebase, and gate
 redesign existed only on that branch. Anything reading the default branch — a
 fresh clone, CI, a student pointed at `main`, a future agent session — was
 getting the pre-Lab-5 course and would have had no way to know.

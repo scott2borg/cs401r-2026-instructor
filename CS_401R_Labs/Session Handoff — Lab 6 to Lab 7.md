@@ -53,8 +53,7 @@ purpose: Warm-start context for a fresh session. Labs 5 and 6 are closed; Lab 7 
 Consequences already absorbed into Labs 5 and 6, and which Lab 7 must respect:
 
 1. **Every on-demand SageMaker quota defaults to 0** — endpoint, training, and processing are three separate numbers per instance type. Only `ml.t2.medium`/`ml.m6g.*` (endpoint) and `ml.t3.{medium,large,xlarge}` (processing) have non-zero defaults.
-2. **SageMaker Model Monitor *schedules* are closed to new accounts.** `CreateMonitoringSchedule` and `CreateDataQualityJobDefinition` both return *"maintenance mode... not available to new customers"*. No quota or permission fixes it.
-3. The reference account is **not representative** — it has accrued elevated limits through use. Always check `get-aws-default-service-quota`, never `get-service-quota`, when reasoning about students.
+2. The reference account is **not representative** — it has accrued elevated limits through use. Always check `get-aws-default-service-quota`, never `get-service-quota`, when reasoning about students.
 
 **Design rule for Lab 7: it must complete inside AWS default quotas.** Lab 7 is mostly analysis and writing, so this should be easy — but verify any AWS call it requires.
 
@@ -72,18 +71,17 @@ Consequences already absorbed into Labs 5 and 6, and which Lab 7 must respect:
 
 Numbered from the project's running list, now at ~20.
 
-| # | Defect | Impact |
-|---|---|---|
-| 18 | `ModelMonitor` IAM role cannot run a monitoring job — no S3 write, no ECR pull, by design | Task 1 impossible; fixed with a separate `ModelMonitorExecution` role |
-| 19 | Lab 5 deployed endpoints with **no `DataCaptureConfig`** | Lab 6 had nothing to analyse; endpoint configs are immutable so it could not be patched later |
-| 20 | **Data capture fails completely silently** without an endpoint-role S3 write | 41 invocations produced zero objects, no error anywhere |
-| 21 | Model Monitor **schedules closed to new accounts** | Lab 6 Task 1 rewritten around manual analyzer runs |
-| 22 | `ml.t3.medium` OOMs the analyzer after **13 min 43 s**, blaming the *data* | Cheapest instance with quota is the one that does not work |
-| 23 | `publish_cloudwatch_metrics=Enabled` fails without a schedule | Model layer must be self-published |
-| 24 | **CloudWatch silently discards backfilled metrics** — past-timestamped puts return HTTP 200 and are never queryable | 7-day-average rules cannot be demonstrated in a lab session |
-| 25 | `CustomerMetadataProperties` rejects **parentheses and commas** | Same family as the em-dash trap |
-| 26 | **Anomaly detectors survive `terraform destroy`** — a new orphan class | `teardown-lab6.sh` now removes them and the sweep checks independently |
-| 27 | Recall@10% SLO of 0.35 was **above the ceiling** (~0.48) and above Lab 4's own gate | Reference model would have breached its SLO on launch day; corrected to 0.25 |
+| #   | Defect                                                                                                              | Impact                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 18  | `ModelMonitor` IAM role cannot run a monitoring job — no S3 write, no ECR pull, by design                           | Task 1 impossible; fixed with a separate `ModelMonitorExecution` role                         |
+| 19  | Lab 5 deployed endpoints with **no `DataCaptureConfig`**                                                            | Lab 6 had nothing to analyse; endpoint configs are immutable so it could not be patched later |
+| 20  | **Data capture fails completely silently** without an endpoint-role S3 write                                        | 41 invocations produced zero objects, no error anywhere                                       |
+| 22  | `ml.t3.medium` OOMs the analyzer after **13 min 43 s**, blaming the *data*                                          | Cheapest instance with quota is the one that does not work                                    |
+| 23  | `publish_cloudwatch_metrics=Enabled` fails without a schedule                                                       | Model layer must be self-published                                                            |
+| 24  | **CloudWatch silently discards backfilled metrics** — past-timestamped puts return HTTP 200 and are never queryable | 7-day-average rules cannot be demonstrated in a lab session                                   |
+| 25  | `CustomerMetadataProperties` rejects **parentheses and commas**                                                     | Same family as the em-dash trap                                                               |
+| 26  | **Anomaly detectors survive `terraform destroy`** — a new orphan class                                              | `teardown-lab6.sh` now removes them and the sweep checks independently                        |
+| 27  | Recall@10% SLO of 0.35 was **above the ceiling** (~0.48) and above Lab 4's own gate                                 | Reference model would have breached its SLO on launch day; corrected to 0.25                  |
 
 **CLI traps worth carrying forward:** percentiles need `--extended-statistics`, not `--statistics`. And **zsh does not word-split unquoted variables** the way bash does, so `--dimensions $D` arrives as one malformed argument. Both produce *empty results rather than errors*.
 
@@ -95,16 +93,15 @@ Lab 7 is *Metrics + Economics & Business Value* — 5 tasks, 100 points, mostly 
 
 **Real numbers now available to build unit economics on:**
 
-| Quantity | Measured |
-|---|---|
-| Endpoint `ml.t2.medium` | $0.056/hr |
-| Endpoint `ml.m5.large` | $0.115/hr |
-| Model Monitor analyzer run (`ml.t3.large`) | 5 min 46 s, **$0.010** per run |
-| Full Lab 5 canary + rollback session | ~$0.12 |
-| Model AUC / recency baseline | 0.747 / 0.642 |
-| Recall@10% (ceiling ~0.48 at 21% base rate) | 0.293 |
-| Churn base rate | 21.2% |
-| Inference latency p95 | ~4.1 ms |
+| Quantity                                    | Measured                       |
+| ------------------------------------------- | ------------------------------ |
+| Endpoint `ml.t2.medium`                     | $0.056/hr                      |
+| Endpoint `ml.m5.large`                      | $0.115/hr                      |
+| Full Lab 5 canary + rollback session        | ~$0.12                         |
+| Model AUC / recency baseline                | 0.747 / 0.642                  |
+| Recall@10% (ceiling ~0.48 at 21% base rate) | 0.293                          |
+| Churn base rate                             | 21.2%                          |
+| Inference latency p95                       | ~4.1 ms                        |
 
 That is enough to compute a genuine cost-per-thousand-predictions and a real ROI model rather than invented figures — which is exactly what Lab 7 Task 2 asks for.
 
