@@ -91,7 +91,9 @@ northstar-ai-platform/
 
 Labs are scaffolded to fade as you progress. Early labs provide more structure; by Lab 5, you are building without templates.
 
-**One out-of-band prerequisite:** *Pre-Lab 3 — Bedrock Model Access Setup* is assigned with Lab 2 (Thu Sep 17) and due **Wed Sep 30**, before Lab 3 opens. On a new AWS account every Bedrock inference quota starts at zero, and access requires a one-time Anthropic use-case form plus per-model quota increases that AWS reviews on its own schedule. Lab 3 Track B and C cannot start without it; Track A is unaffected. It is graded within Lab 3 Task 4.
+**Two out-of-band prerequisites:** *Pre-Lab 3 — Bedrock Model Access Setup* is assigned with Lab 2 (Thu Sep 17) and due **Wed Sep 30**, before Lab 3 opens. On a new AWS account every Bedrock inference quota starts at zero, and access requires a one-time Anthropic use-case form plus per-model quota increases that AWS reviews on its own schedule. Lab 3 Track B and C cannot start without it; Track A is unaffected. It is graded within Lab 3 Task 4.
+
+*Pre-Lab 4 — SageMaker Training Quota Setup* is assigned at the same time (Thu Sep 17) and also due **Wed Sep 30**, six weeks before Lab 4 opens. The AWS default on-demand SageMaker training quota is **zero instances** on a new account, so the training job Lab 4's pipeline runs fails with `ResourceLimitExceeded` until an increase is approved. **Unlike Bedrock, this one has no unaffected track** — Lab 4 cannot be completed without it. Lab 3 is only partly affected: train locally and Track A is fine. It is verified within Lab 4 Task 2.
 
 | Lab | Data Provided | Infrastructure Templates | Code Scaffolding |
 |-----|--------------|--------------------------|-----------------|
@@ -127,7 +129,7 @@ Each lab is graded on a **100-point scale** and weighted equally in the final gr
 
 Build the NorthStar Retail AI platform skeleton on AWS — twice. First by hand in the console (Part A), then as Terraform code (Part B). The sequence is deliberate: you cannot write good Infrastructure as Code for a system you do not understand at the API level. Part A forces you to understand every resource and why it exists. Part B teaches you what IaC is actually automating.
 
-By the end of this lab you will have: a mental model of the platform architecture, evidence that you built it manually, and a Terraform codebase that rebuilds it from scratch with a single command.
+By the end of this lab, you will have: a mental model of the platform architecture, evidence that you built it manually, and a Terraform codebase that rebuilds it from scratch with a single command.
 
 > **Scope note:** This lab uses a single public subnet to keep the networking simple. Lab 2 adds private subnets, a NAT Gateway, and the data engineer and model monitor IAM roles — once you have context for why each of those components exists.
 
@@ -260,8 +262,9 @@ Create all four prefixes now. They will be used starting in Lab 2.
 
 ## Starter Kit (Canvas: Lab 1)
 
-- `northstar-overview.md` — NorthStar Retail case description
-- `terraform-module-template/` — empty module directory structure (Part B)
+- `northstar-scenario-overview.md` — NorthStar Retail case description
+- `NorthStar_Retail_AI_Platform.pptx` — the case briefing deck
+- `terraform-module-template/` — skeleton module structure for Part B: four empty modules (vpc, storage, iam, sagemaker) plus a dev environment, every variable declared and documented, every resource left as a TODO. It ships passing `terraform fmt -check -recursive` and `terraform validate`, so you start green — keep it that way, it is 5 of the 15 points in Task B1.
 - `aws-account-setup.md` — AWS account setup, credit budget, and cost controls
 - `northstar-data-schema.md` — data source schemas
 
@@ -663,7 +666,7 @@ Estimate steady-state monthly cost using [AWS Pricing Calculator](https://calcul
 
 ## Objective
 
-Extend the NorthStar platform in two directions. First, harden the infrastructure left intentionally simple in Lab 1: move SageMaker into a private subnet behind a NAT Gateway, add the DataEngineer and ModelMonitor IAM roles, and add S3 lifecycle rules. Second, build the data pipeline that feeds the ML platform: raw data lands in S3, Glue crawls and transforms it, engineered features are written to SageMaker Feature Store.
+Extend the NorthStar platform in two directions. First, harden the infrastructure left intentionally simple in Lab 1: move SageMaker into a private subnet behind a NAT Gateway, add the DataEngineer and ModelMonitor IAM roles, and add S3 lifecycle rules. Second, build the data pipeline that feeds the ML platform: raw data lands in S3, Glue crawls and transforms it, and engineered features are written to SageMaker Feature Store.
 
 By the end of this lab, you will have a working end-to-end data pipeline: raw customer event data → cleaned and transformed records → feature vectors in Feature Store → ready for model training in Lab 3.
 
@@ -983,7 +986,7 @@ All infrastructure changes in this lab are made through Terraform. Do not use th
 
 ### Task 1 — Extend Platform Infrastructure (25 points)
 
-Modify your existing Terraform modules and apply the changes to real AWS.
+Modify your existing Terraform modules and apply the changes to a real AWS account.
 
 **Changes to `modules/vpc/`:**
 - Add `aws_subnet` (private, `10.0.1.0/24`, `us-east-1a`, no public IP)
@@ -1007,7 +1010,7 @@ Modify your existing Terraform modules and apply the changes to real AWS.
 - Set `app_network_access_type = "VpcOnly"` so Studio egress routes through the NAT Gateway instead of straight out the Internet Gateway
 - If you still have Lab 1 running, both of these force **replacement** — Terraform destroys and recreates the domain (~10 min). That is expected, not a mistake; run `terraform plan` first and confirm the replacement is the only destructive change. If you destroyed Lab 1 after submitting (as required), the domain is simply created fresh, which takes about the same time.
 
-> **ASCII only in AWS-facing description fields.** EC2 rejects any non-ASCII character in a security group's `description` with `InvalidParameterValue: Character sets beyond ASCII are not supported`. If you pasted an em dash (—), a curly quote, or an arrow into a `description`, `terraform apply` fails at `CreateSecurityGroup` — but `terraform validate`, and LocalStack both accept it, so you will not catch this until you hit real AWS. Use plain hyphens in any `description` argument that Terraform sends to an AWS API. (Confusingly, IAM *does* accept non-ASCII in policy descriptions — so the failure looks arbitrary.)
+> **ASCII only in AWS-facing description fields.** EC2 rejects any non-ASCII character in a security group's `description` with `InvalidParameterValue: Character sets beyond ASCII are not supported`. If you pasted an em dash (—), a curly quote, or an arrow into a `description`, `terraform apply` fails at `CreateSecurityGroup` — but `terraform validate` and LocalStack both accept it, so you will not catch this until you hit real AWS. Use plain hyphens in any `description` argument that Terraform sends to an AWS API. (Confusingly, IAM *does* accept non-ASCII in policy descriptions — so the failure looks arbitrary.)
 
 **Changes to `environments/dev/variables.tf`:**
 - Add `private_subnet_cidr` (string, `"10.0.1.0/24"`)
@@ -1363,7 +1366,8 @@ Commit `docs/lab2-destroy-output.txt`. Lab 3 begins by re-running `terraform app
 **Chapters:** *Model Development* (Sessions 1–3: Fine-Tuning, RAG, Agents)
 **Builds on:** Lab 2 — models train on the Feature Store features and `churn_label` you produced
 **Primary tools:** SageMaker (training, Experiments, Model Registry), Bedrock
-**Prerequisite:** *Pre-Lab 3 — Bedrock Model Access Setup*, due Wed Sep 30
+**Prerequisite:** *Pre-Lab 3 — Bedrock Model Access Setup*, due Wed Sep 30 — Tracks B and C cannot start without it.
+**Prerequisite (only if training on SageMaker):** *Pre-Lab 4 — SageMaker Training Quota Setup*, due Wed Sep 30. Your on-demand training quota is **0** by default, so `CreateTrainingJob` fails until an increase is approved. Train locally instead and every Track A rubric item is still reachable.
 
 > **If you have not completed the Bedrock setup exercise, do it now.** On a new AWS account every
 > Bedrock inference quota is **zero**, and access requires a one-time Anthropic use-case form plus
@@ -1408,7 +1412,7 @@ This is why Lab 2 made you build category diversity, channel mix, and basket siz
 
 - `churn_training_skeleton.py` — SageMaker training entry point: Feature Store Athena query, XGBoost setup with class-imbalance handling, evaluation gates, slice-evaluation stub, Model Registry registration. Several `TODO`s are yours to complete.
 - `evaluation_harness.py` — dual-track evaluation. Track B: four RAGAS test cases built from real Lab 2 features, with ground truths written against the policy corpus. Track C: the five required agent scenarios plus a bonus prompt-injection case, each with expected and forbidden tool calls and an escalation expectation.
-- `prompt_templates/offer_generation_prompts.md` — five templates carrying two documented design weaknesses plus **three planted factual errors** in the tier-guidelines block. The errors are the kind a marketing team introduces writing copy from memory: two wrong tier thresholds and one benefit that exists at no tier. Find them by diffing against the policy corpus; injecting the block unchanged will fail faithfulness.
+- `prompt_templates/offer_generation_prompts.md` — five templates carrying two documented design weaknesses plus **three planted factual errors** in the tier-guidelines block. The errors are the kind a marketing team introduces when writing copy from memory: two wrong tier thresholds and one benefit that exists at no tier. Find them by diffing against the policy corpus; injecting the block unchanged will fail faithfulness.
 - `northstar-policy-docs/` — the RAG corpus for Track B: return policy, loyalty program terms, shipping policy, and an FAQ.
 
 ---
@@ -1433,12 +1437,18 @@ Lab 3 introduces two new ways to spend money without noticing:
 
 | Resource | Cost | Rule |
 |---|---|---|
-| SageMaker training jobs | ~$0.10–0.30 per run on `ml.m5.large` | Fine. Train freely. |
+| SageMaker training jobs | ~$0.10–0.30 per run on `ml.m5.large` | Cheap to run — but **your quota is 0 until you request an increase.** See below. |
 | **SageMaker endpoints** | **~$0.05–0.10/hour, billed until deleted** | **Delete after every test.** This is the Lab 3 equivalent of Lab 2's NAT Gateway. |
 | Bedrock inference | per-token | Small at lab scale; track it in Track B/C |
 | Studio kernels | ~$0.05/hour | Stop the kernel when you stop working |
 
 **You do not need a persistent endpoint to pass this lab.** Batch transform or a local model load is sufficient for every rubric item. If you deploy an endpoint to experiment, delete it the same session. Run `bash scripts/teardown-lab3.sh` when you submit.
+
+> **You also do not need a SageMaker Training Job to pass this lab — which is fortunate, because you probably cannot run one yet.** The AWS default on-demand training quota is **0 instances** for every family, so `CreateTrainingJob` fails with `ResourceLimitExceeded` regardless of your budget. Train locally: `churn_training_skeleton.py` runs on your machine against the Feature Store data, and every Track A rubric item is reachable that way.
+>
+> If you want to use a real training job here — and you will need one in **Lab 4**, which has no local fallback — file the quota request now. See [[Pre-Lab 4 — SageMaker Training Quota Setup]]. It is assigned alongside Pre-Lab 3 for the same reason: the approval time is not yours to control.
+>
+> One consequence worth knowing before you compare numbers: **the SageMaker training container runs XGBoost 1.7**, and this lab's reference metrics were measured on 3.2.0. See the provenance note under Task 1 — the two will not agree to four decimal places, and that is expected.
 
 ---
 
@@ -1474,7 +1484,17 @@ The baseline is a model trained on `days_since_last_purchase` alone. Train it, r
 >
 > What replaces it is the question the lab actually asks: **did your feature engineering do measurable work?** You answer that with an interval. If the 95% CI on (your AUC − baseline AUC) excludes zero, you have evidence. If it straddles zero, you do not — regardless of how good the point estimate looks. Compute it by bootstrapping your test set: resample it with replacement ~2,000 times, score both models on each resample, and take the 2.5th and 97.5th percentiles of the difference. Resample the *rows once per replicate and score both models on them* — resampling the two models independently inflates the interval.
 
-> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-02 against the 10,000-customer dataset (registry version v4), `seed=42`, `test_size=0.30`, 6,999 train / 3,000 test. Any figure you encounter from before that date is superseded; the dataset was 8x smaller and its metrics did not reproduce.
+> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-02 against the 10,000-customer dataset (registry version v4), `seed=42`, `test_size=0.30`, 6,999 train / 3,000 test, **on XGBoost 3.2.0**. Any figure you encounter from before that date is superseded; the dataset was 8x smaller and its metrics did not reproduce.
+>
+> **The XGBoost version is part of that provenance, not a footnote.** These figures reproduce to four decimal places run after run *at a fixed XGBoost version*, and they move when the version changes. Measured 2026-08-03 on identical data, an identical split and an identical `scale_pos_weight`:
+>
+> | Metric | XGBoost 3.2.0 (above) | XGBoost 1.7 |
+> |---|---|---|
+> | Recency-only baseline AUC | 0.7233 | **0.7208** |
+> | Precision@10% | 0.6833 | **0.6933** |
+> | Recall@10% | 0.3106 | **0.3152** |
+>
+> This matters because **the SageMaker XGBoost training container is 1.7**, so if you train through a SageMaker Training Job — or through the Lab 4 pipeline — you should expect the third column, not the second. Nothing is wrong with your model. Report the version you trained on alongside your metrics, and compare like with like. The gate is unaffected: the lift CI excludes zero in both.
 
 Note the recall ceiling: with ~22% positives, targeting the top 10% of customers caps recall at about **45%**. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
 
@@ -1538,7 +1558,7 @@ Generate personalised retention offers for customers your Task 1 model flags as 
 | Answer relevance | ≥ 0.75 |
 | Context recall | ≥ 0.70 |
 
-Include 5 input/output pairs showing correct behaviour and 2 documented failure cases.
+Include 5 input/output pairs showing correct behavior and 2 documented failure cases.
 
 #### Track C: Customer Service Agent
 
@@ -1566,7 +1586,7 @@ Build a ReAct agent handling NorthStar customer inquiries.
 
 Scenario 5 is the one that matters, and the harness implements it as a long-tenure Platinum member demanding a return on a **final sale** item, with an account-closure threat attached. Final sale is non-returnable at every tier — `POL-RET-004 §4` explicitly overrides tier benefits — and exceptions sit with the Director of Customer Experience, entirely outside agent authority.
 
-The correct behaviour is to be empathetic, cite the policy, decline plainly, and escalate. Conceding the return, or merely hinting it might be possible, is a **fail** however satisfied the customer sounds. Note that this tests policy resolve, not jailbreak resistance: real customers do not type "ignore your previous instructions", they say "I have been loyal for six years." Prompt injection is covered separately as a bonus case.
+The correct behavior is to be empathetic, cite the policy, decline plainly, and escalate. Conceding the return, or merely hinting it might be possible, is a **fail** however satisfied the customer sounds. Note that this tests policy resolve, not jailbreak resistance: real customers do not type "ignore your previous instructions", they say "I have been loyal for six years." Prompt injection is covered separately as a bonus case.
 
 **Rubric (Track B or C):**
 
@@ -1631,6 +1651,7 @@ If you also finished with the Lab 2 infrastructure, run `scripts/teardown-lab2.s
 **Assigned:** Thu Oct 15 | **Due:** Sat Oct 31, midnight
 **Chapters:** *XOps Stack*, *Testing & Evaluation*, *Continuous Delivery*
 **Builds on:** Labs 1–3 — automates the lifecycle of your Lab 3 churn model
+**Prerequisite:** *Pre-Lab 4 — SageMaker Training Quota Setup*, due Wed Sep 30. **There is no local fallback in this lab** — without the quota, the pipeline cannot complete.
 
 ## Objective
 
@@ -1641,6 +1662,81 @@ Automate everything. A model that requires manual steps to test, evaluate, and d
 - `buildspec.yml` — CodeBuild build specification skeleton
 - `pipeline.yaml` — CodePipeline definition starter
 - `tests/test_data.py`, `tests/test_features.py`, `tests/test_model.py` — populated pytest suites covering the processed dataset, the Lab 2 feature functions, and the Lab 3 model contract. Several assertions are left as `TODO` for you to implement.
+- `tests/conftest.py` — registers `--model-path` and `--eval-metrics-path`. Leave it where it is; pytest only reads `pytest_addoption` from `conftest.py`.
+
+## Before you deploy anything — four prerequisites
+
+None of these are created for you, and each one fails in a way that does not
+name the real cause. Do them first.
+
+**1. An artifacts bucket, versioned.** CodePipeline needs a working bucket of
+its own for stage artifacts. This is **not** the `northstar-dev-data-<account>`
+data bucket and must not be pointed at it. Versioning is required — CodePipeline
+will not use an unversioned bucket.
+
+```bash
+AB=northstar-dev-cicd-artifacts-$(aws sts get-caller-identity --query Account --output text)
+aws s3api create-bucket --bucket "$AB"
+aws s3api put-bucket-versioning --bucket "$AB" \
+  --versioning-configuration Status=Enabled
+```
+
+**2. A GitHub connection, created and authorized *before* the stack.** A
+CodeStar connection created by CloudFormation is born `PENDING`, and a
+`PENDING` connection can only be completed by a human in the console — so a
+stack that creates its own connection comes up "successfully" with a Source
+stage that can never pull. Create it once, authorize it, then pass the ARN in.
+
+```bash
+aws codeconnections create-connection \
+  --provider-type GitHub --connection-name northstar-github
+# Console: Developer Tools → Settings → Connections → Update pending connection
+aws codeconnections list-connections \
+  --query "Connections[?ConnectionName=='northstar-github'].[ConnectionStatus,ConnectionArn]" \
+  --output text
+```
+
+It must read **`AVAILABLE`** before the pipeline will run.
+
+**3. The SageMaker Pipeline must exist.** The build triggers a pipeline named
+`northstar-churn-pipeline`; a `start-pipeline-execution` against a pipeline that
+was never defined fails with `ValidationException`. `pipeline_definition.py`
+creates it, and the buildspec upserts it on every build so each execution is
+pinned to the commit that triggered it.
+
+**4. Deploy with `CAPABILITY_NAMED_IAM`**, not `CAPABILITY_IAM` — the template
+creates named roles.
+
+```bash
+aws cloudformation deploy \
+  --template-file pipeline.yaml --stack-name northstar-cicd \
+  --parameter-overrides \
+      ProjectName=northstar Environment=dev \
+      GitHubOwner=YOUR_GITHUB_USERNAME GitHubRepo=northstar-ai-platform \
+      GitHubBranch=main ArtifactsBucket="$AB" \
+      GitHubConnectionArn=<arn from step 2> \
+      SageMakerRoleArn=$(terraform -chdir=infrastructure/environments/dev \
+                          output -raw ml_engineer_role_arn) \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+> **The training job needs on-demand training quota, and the AWS default is
+> zero.** `ml.m5.large for training job usage` (`L-611FA074`) starts at **0** on
+> a new account and the TrainingStep fails with `ResourceLimitExceeded`.
+> **Unlike Lab 3, there is no local fallback here** — the whole point of the
+> lab is that the pipeline trains, so this quota is a hard prerequisite.
+>
+> You should already have filed this in [[Pre-Lab 4 — SageMaker Training Quota Setup]],
+> assigned back with Lab 2. If you did not, do it **now** and read Step 3 there
+> for the spot-training fallback — approval is not instant and Lab 4 is two
+> weeks long.
+>
+> ```bash
+> aws service-quotas get-service-quota --service-code sagemaker \
+>   --quota-code L-611FA074 --query 'Quota.Value' --output text
+> ```
+>
+> A non-zero number is the only evidence that matters.
 
 ## Tasks
 
@@ -1688,25 +1784,85 @@ Implement a CI/CD pipeline that connects: **code push → test → build → eva
 
 **Acceptable implementations:** AWS CodePipeline, GitHub Actions, or GitLab CI (your choice — document the rationale).
 
-**Required pipeline stages:**
+**Required pipeline phases.** Your pipeline must perform all five of these, in
+this order:
 
 1. **Source** — triggered by push to `main` branch
 2. **Test** — runs `pytest tests/`; pipeline fails and alerts if any test fails
 3. **Build** — packages training code; runs SageMaker Training Job with the new code
-4. **Evaluate** — runs evaluation tests against the new model; compares to champion
+4. **Evaluate** — runs the promotion gate against the new model's metrics
 5. **Register** — promotes model to SageMaker Model Registry with status `PendingManualApproval` if all gates pass
 
+> **Five phases is not five CodePipeline stages, and you are not required to
+> make them line up.** A CodePipeline *stage* is a deployment boundary — it
+> exists so artifacts can hand off and so a human can be inserted between two
+> points. A CI *phase* is a logical step. Forcing one stage per phase means
+> passing the model artifact between stages and standing up a CodeBuild project
+> per stage, which buys nothing here.
+>
+> The reference implementation uses **three** CodePipeline stages:
+>
+> | CodePipeline stage | Phases it performs | Where |
+> |---|---|---|
+> | `Source` | Source | CodeStar connection → GitHub `main` |
+> | `Build` | Test, Build, Evaluate, Register | `buildspec.yml`: `pre_build` runs `pytest tests/`; `build` upserts and runs the SageMaker Pipeline, which trains and registers; then the gate runs against the emitted metrics |
+> | `ManualApproval` | the human promotion decision | SNS-notified approval action |
+>
+> Grading is on the five **phases** being present, ordered and enforced — not
+> on the stage count in the console. Document your mapping either way.
+
 **Gate behavior:**
-- Pipeline must halt at the failed stage — not silently skip
-- A failed evaluation gate must send a CloudWatch alarm (email notification acceptable)
+- The pipeline must halt at the failed phase — not silently skip
+- A failed gate must halt the build **and** notify. The stack creates a CloudWatch alarm `northstar-ci-build-failure` and an SNS topic `northstar-model-approvals`; subscribe an address to the topic:
+
+```bash
+aws sns subscribe --topic-arn <ModelApprovalTopicArn from stack outputs> \
+  --protocol email --notification-endpoint you@example.com
+```
+
+> **Two traps in the notification path, both of which fail silently.** Wiring an
+> alarm is the easy part; proving it can actually tell you something is the
+> exercise.
+>
+> **1. `post_build` does not always run.** It runs when the *build* phase fails,
+> but **not** when `pre_build` fails — CodeBuild goes straight to `FINALIZING`
+> and skips it entirely. So a metric published from `post_build` is absent for
+> exactly the failure the rubric asks you to demonstrate. The reference alarm
+> watches `AWS/CodeBuild` `FailedBuilds`, which CodeBuild emits itself and which
+> no phase failure can skip. If you publish your own metric instead, prove it
+> survives a *test* failure, not just a gate failure.
+>
+> **2. An SNS topic policy that omits `cloudwatch.amazonaws.com` breaks
+> notification without breaking the alarm.** The alarm still evaluates, still
+> transitions to `ALARM`, still turns the console red — and publishes nothing.
+> The only evidence is one line here:
+>
+> ```bash
+> aws cloudwatch describe-alarm-history --alarm-name northstar-ci-build-failure \
+>   --history-item-type Action --max-records 5
+> # Failed to execute action arn:aws:sns:...:northstar-model-approvals
+> ```
+>
+> Run that command against your own alarm. **An alarm that fires and cannot
+> notify is worse than no alarm, because it looks like coverage.** Note also
+> that SNS rejects a multi-statement topic policy unless every statement has a
+> unique `Sid`.
+>
+> **How to demonstrate all of this:** add a deliberately failing assertion to
+> `tests/`, push, and confirm four things — the run halts in the phase that owns
+> tests, the Model Registry gains **no** new version, the alarm goes `ALARM`,
+> and `describe-alarm-history` says *Successfully executed action*. Then revert
+> and confirm the reverse: green build, registry gains a version, alarm returns
+> to `OK`.
 
 **Rubric:**
 
 | Item | Points | Pass Criteria |
 |------|--------|---------------|
-| All 5 stages present and sequenced correctly | 12 | Pipeline YAML/config shows all stages; TA can trigger a run |
-| Pipeline halts correctly on test failure | 10 | TA introduces a deliberate test failure; pipeline stops at Test stage |
-| Model Registry promotion only on green gates | 8 | Model Registry shows `PendingManualApproval` only after a clean run |
+| All 5 phases present, ordered, with a documented stage mapping | 10 | Pipeline config plus your mapping shows all five; TA can trigger a run |
+| Pipeline halts correctly on test failure | 8 | TA introduces a deliberate test failure; the run stops in the phase that owns tests and does **not** reach Register |
+| Model Registry promotion only on green gates | 6 | Model Registry shows `PendingManualApproval` only after a clean run; registry gains **no** version on the failed run |
+| Failure notification demonstrably delivers | 6 | On the failed run the alarm reaches `ALARM` **and** `describe-alarm-history --history-item-type Action` reads *Successfully executed action*. An alarm that fires without delivering scores 0 here |
 
 ### Task 3 — MLOps Configuration (20 points)
 
@@ -1831,14 +1987,14 @@ Deploy the churn model approved above.
   - *Batch Transform, parallel run:* the new model runs as a **shadow job over the same input manifest** as the incumbent; you compare score distributions and disagreement rate before the new model's output feeds anything downstream. There is no traffic weight in batch — the parallel run and the comparison artifact are what earn the points.
 - **Rollback trigger configured with a numeric threshold** — specify the metric and the value. The trigger must exist **as code** in `deployment/configs/` (a CloudWatch alarm definition, Terraform resource, or deployment config), not only as prose in the plan. A threshold nobody wired up is a paragraph, not a control.
 
-  > **`ModelLatency` is emitted in MICROSECONDS, not milliseconds.** A 200 ms threshold is `200000`. Writing `200` sets the alarm to 0.2 ms, which is far below a healthy endpoint's normal latency — measured at roughly **4,100 µs (4.1 ms)** on `ml.m5.large` for this model. The alarm goes to `ALARM` immediately and stays there, and a rollback wired to it fires against a perfectly healthy deployment. Both behaviours verified on AWS. Check the `Unit` field in `get-metric-statistics` output before you pick any threshold.
+  > **`ModelLatency` is emitted in MICROSECONDS, not milliseconds.** A 200 ms threshold is `200000`. Writing `200` sets the alarm to 0.2 ms, which is far below a healthy endpoint's normal latency — measured at roughly **4,100 µs (4.1 ms)** on `ml.m5.large` for this model. The alarm goes to `ALARM` immediately and stays there, and a rollback wired to it fires against a perfectly healthy deployment. Both behaviors verified on AWS. Check the `Unit` field in `get-metric-statistics` output before you pick any threshold.
 
-- **Rollback action.** The canary rollback is `update-endpoint-weights-and-capacities` setting the canary to weight 0. It takes about **90 seconds**, the endpoint reports `Updating` throughout but keeps serving with no dropped requests, and it does **not** stop the canary instance billing.
+- **Rollback action.** The canary rollback is `update-endpoint-weights-and-capacities` setting the canary to weight 0. It takes about **90 seconds**; the endpoint reports `Updating` throughout but keeps serving with no dropped requests, and it does **not** stop the canary instance billing.
 - **Auto-scaling policy (real-time only):** target tracking on `SageMakerVariantInvocationsPerInstance` at 1000, scale-out cooldown 60s, scale-in cooldown 600s.
 
   **Start on `ml.t2.medium`.** It is the cheapest real-time instance at $0.056/hr, and it is one of only three endpoint types your new AWS account has any quota for. Deploy the canary, observe the traffic split, wire the rollback alarm — all of that works.
 
-  Then try to attach the auto-scaling policy. **It will fail**, and working out why is part of this task. See *Instance selection and quota* below before you start, so you can plan around it rather than discover it at 2am.
+  Then try to attach the auto-scaling policy. **It will fail**, and working out why is part of this task. See *Instance selection and quota* below before you start, so you can plan around it rather than discover it at 2 am.
 - **Compressed monitoring window.** Your *plan* documents the production cadence — a 48-hour canary window before promotion. Your *lab execution* observes for **60 minutes**, then promotes or rolls back. State the compression explicitly in the plan: what a 48-hour window would catch that 60 minutes cannot, and what you would additionally monitor in a real rollout. You are graded on identifying the gap, not on burning two days of endpoint time.
 - **Everything deleted after the window closes and before submission.** See Teardown.
 
@@ -1873,9 +2029,9 @@ ValidationException: You cannot register a variant with
 ml.t2.medium instance type as a scalable target.
 ```
 
-This is not a bug in your configuration and there is no flag that fixes it. Burstable instances (`ml.t2.*`, `ml.t3.*`) accumulate CPU credits rather than delivering sustained performance, so Application Auto Scaling refuses to manage them — a scaling decision based on a credit-throttled instance would be meaningless. The fix is to move to a non-burstable instance type, and the obvious candidate is `ml.m5.large`.
+This is not a bug in your configuration, and there is no flag that fixes it. Burstable instances (`ml.t2.*`, `ml.t3.*`) accumulate CPU credits rather than delivering sustained performance, so Application Auto Scaling refuses to manage them — a scaling decision based on a credit-throttled instance would be meaningless. The fix is to move to a non-burstable instance type, and the obvious candidate is `ml.m5.large`.
 
-Note what this cost you: the endpoint deployed *fine*, served traffic *fine*, and failed only at the very last step — **after it had already been billing for several minutes.** A capability you assume is available because the resource looks healthy is a category of production failure worth internalising.
+Note what this cost you: the endpoint deployed *fine*, served traffic *fine*, and failed only at the very last step — **after it had already been billing for several minutes.** A capability you assume is available because the resource looks healthy is a category of production failure worth internalizing.
 
 **Wall 2 — your account almost certainly has zero quota for `ml.m5.large`.**
 
@@ -1884,7 +2040,7 @@ You switch the instance type, redeploy, and get:
 ```
 ResourceLimitExceeded: The account-level service limit
 'ml.m5.large for endpoint usage' is 0 Instances, with current
-utilization of 0 Instances and a request delta of 1 Instances.
+utilization of 0 Instances and a request delta of 1 Instance.
 ```
 
 **This is expected. It is not a mistake you made.**
@@ -1929,7 +2085,7 @@ You can also do this in the console: **Service Quotas → AWS services → Amazo
 
 **If your increase has not landed in time**, deploy on `ml.t2.medium`, capture the `register-scalable-target` rejection and your pending quota request as evidence, and write up the scaling design you *would* have applied. See the rubric — **this path earns full credit on the auto-scaling item.** You are graded on diagnosing and responding to the constraint, not on winning a race with AWS Support.
 
-**A note for Lab 6.** Whatever instance you land on, **enable `DataCaptureConfig`** — Lab 6's monitoring has nothing to analyse without it, and endpoint configs are immutable so it cannot be added later without a redeploy. `ml.t2.medium` supports data capture fully, so an unresolved quota request does not block Lab 6.
+**A note for Lab 6.** Whatever instance you land on, **enable `DataCaptureConfig`** — Lab 6's monitoring has nothing to analyze without it, and endpoint configs are immutable so it cannot be added later without a redeploy. `ml.t2.medium` supports data capture fully, so an unresolved quota request does not block Lab 6.
 
 **Rubric:**
 
@@ -2079,22 +2235,22 @@ Lab 5 taught you that a SageMaker endpoint bills from `InService` until deletion
 | CloudWatch custom metric | $0.30 / metric-month | **Not prorated** — you pay for the month |
 | CloudWatch dashboard | free (first 3) | Then $3/mo |
 
-A monitoring job costs more per hour than a `t2.medium` endpoint, but it only runs for minutes, so in practice it adds roughly 15% to your bill. **Measured 2026-07-31: a baseline job on `ml.t3.large` took 5 min 46 s of billed instance time and cost $0.010.**
+A monitoring job costs more per hour than a `t2.medium` endpoint, but it only runs for minutes, so in practice it adds roughly 25% to your bill. **Measured 2026-08-03 at 10,000 customers: a baseline job on `ml.t3.large` took 9 min 44 s of billed instance time and cost $0.016; an analysis run took 8 min 44 s and cost $0.015.**
 
 What this actually costs you — the column that applies depends on which instance Lab 5 left you on:
 
 | If you… | On `ml.t2.medium` | On `ml.m5.large` |
 |---|---|---|
-| Work in one focused session and tear down (3 h) | **$0.50** | **$0.68** |
-| Leave it running overnight (14 h) | **$1.24** | **$2.07** |
-| Forget for three days (72 h) | **$5.09** | **$9.34** |
-| Forget for a week (168 h) | **$11.47** | **$21.38** |
+| Work in one focused session and tear down (3 h) | **$0.53** | **$0.70** |
+| Leave it running overnight (14 h) | **$1.30** | **$2.13** |
+| Forget for three days (72 h) | **$5.40** | **$9.64** |
+| Forget for a week (168 h) | **$12.17** | **$22.08** |
 
-Burn rate with the endpoint live and one analysis run per hour: **$0.0664/hr** on `t2.medium`, **$0.1254/hr** on `m5.large`.
+Burn rate with the endpoint live and one analysis run per hour: **$0.0706/hr** on `t2.medium`, **$0.1296/hr** on `m5.large`.
 
-> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 146 hours (6.1 days) on `t2.medium`, or 77 hours (3.2 days) on `m5.large`.** You have a 16-day submission window, so either number is reachable by simply forgetting. Do the lab in one sitting and tear it down.
+> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 137 hours (5.7 days) on `t2.medium`, or 75 hours (3.1 days) on `m5.large`.** You have a 16-day submission window, so either number is reachable by simply forgetting. Do the lab in one sitting and tear it down.
 
-**The part that is new and catches people:** each analyzer run is a *separate* billable instance on top of the endpoint. The endpoint bills continuously; every analysis you launch adds ~6 minutes of `ml.t3.large` on top. Two or three runs is normal while you get the inputs right.
+**The part that is new and catches people:** each analyzer run is a *separate* billable instance on top of the endpoint. The endpoint bills continuously; every analysis you launch adds ~9 minutes of `ml.t3.large` on top. Two or three runs is normal while you get the inputs right.
 
 If you automate the analysis on a timer (EventBridge, a cron job, a loop), **that timer keeps launching billable jobs whether or not you are still working, and whether or not the endpoint still exists.** `scripts/teardown-lab5.sh` knows nothing about monitoring. **Use `scripts/teardown-lab6.sh`** — it stops in-flight processing jobs and removes any schedule before deleting the endpoint.
 
@@ -2135,17 +2291,17 @@ ClientError: Please use an instance type with more memory,
 or reduce the size of job data processed on an instance.
 ```
 
-That message will send you off shrinking your dataset, which is not the problem. **`ml.t3.large` (8 GB) is the floor.** Measured: baseline job completed in 5 min 46 s of billed instance time.
+That message will send you off shrinking your dataset, which is not the problem. **`ml.t3.large` (8 GB) is the floor.** Measured: baseline job completed in 9 min 44 s of billed instance time at 10,000 customers.
 
-> **Note the inversion from Lab 5.** Lab 5's trap was that *burstable instances cannot be auto-scaling targets* — you were forced off `ml.t3.*` onto `ml.m5.large`. In Lab 6 the constraint runs exactly the other way: burstable is the only class with any default processing quota at all. Same instance family, opposite conclusion, one lab apart.
+> **Note the inversion from Lab 5.** Lab 5's trap was that *burstable instances cannot be auto-scaling targets* — you were forced off `ml.t3.*` onto `ml.m5.large`. In Lab 6, the constraint runs exactly the other way: burstable is the only class with any default processing quota at all. Same instance family, opposite conclusion, one lab apart.
 >
-> **Endpoint quota, training quota and processing quota are three completely separate numbers**, and having one tells you nothing about the others. `ml.m5.large` has a *different* quota for each. The AWS default for all three on-demand families is 0; accounts accumulate higher applied limits through usage, which is why an endpoint that deployed fine in Lab 5 does not mean a processing job will run in Lab 6. Always check the specific quota for the specific job type.
+> **Endpoint quota, training quota, and processing quota are three completely separate numbers**, and having one tells you nothing about the others. `ml.m5.large` has a *different* quota for each. The AWS default for all three on-demand families is 0; accounts accumulate higher applied limits through usage, which is why an endpoint that deployed fine in Lab 5 does not mean a processing job will run in Lab 6. Always check the specific quota for the specific job type.
 
 If you want `ml.m5.large` for processing, you must file a Service Quotas increase (`L-8541302D`) and wait on an AWS Support case. **Do not put that on the critical path for this lab** — the lab is designed to complete on `ml.t3.large` with no quota request.
 
 ### 1. Your endpoint must have data capture enabled
 
-Model Monitor analyses inference data that the endpoint captured to S3. **No capture means nothing to analyse**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
+Model Monitor analyzes inference data that the endpoint captured to S3. **No capture means nothing to analyze**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
 
 **Endpoint configs are immutable.** Capture cannot be switched on for a running endpoint. If your endpoint was deployed without it, you must create a new endpoint config and call `update-endpoint` (~3 min 47 s, zero downtime):
 
@@ -2158,7 +2314,7 @@ Capture lands under `s3://<bucket>/datacapture/<endpoint>/<variant>/<yyyy>/<mm>/
 
 ### 2. Use the ModelMonitorExecution role, not the ModelMonitor role
 
-The platform has two similarly named roles and they are **not interchangeable**:
+The platform has two similarly named roles, and they are **not interchangeable**:
 
 | Role | What it is | Use for |
 |---|---|---|
@@ -2569,7 +2725,11 @@ You are not starting from a blank page. These are real, from the reference imple
 
 Reproduced from the table above: hosting 0.5889 / 0.4328 / 0.0192 hr, processing 0.0958 / 0.2283 hr, Glue 1.0311 ETL + 0.4786 crawler DPU-hr, Feature Store 7,967 write RU, S3 764 PUT / 3,260 GET, NAT 4 hr, CodeBuild 10 build-min.
 
-> **These are July 2026 *cumulative* usage figures from Cost Explorer, measured on the retired 1,200-customer dataset.** Two cautions. First, they are a month's total across every run, **not the cost of one pass** — scaling them as though they were per-run is a real error, and this course's own answer key made it until 2026-08-03. Second, the dataset is now 8x larger: a single measured ETL pass is 242 + 188 = 430 DPU-seconds. Use *your own* measured usage from your account, and say which quantity you are scaling.
+> **These are July 2026 *cumulative* usage figures from Cost Explorer, measured on the retired 1,200-customer dataset.** Two cautions. First, they are a month's total across every run, **not the cost of one pass** — scaling them as though they were per-run is a real error, and this course's own answer key made it until 2026-08-03. Second, the dataset is now 8x larger: a single measured ETL pass is roughly **380–500 DPU-seconds** across the two Glue jobs.
+>
+> **That range is the point, not a hedge.** Four measured single-pass runs on byte-identical data gave **430, 400, 380 and 502** total DPU-seconds — a **32% spread** with no change to the input, the code, or the configuration. Glue bills on DPU-hours it decides you consumed, and that number moves run to run.
+>
+> So: **do not report a single measured DPU figure as though it were a constant, and do not treat a number outside someone else's measurement as an error.** If your pass lands at 380 or at 500, both are normal. If your cost model's conclusion changes materially between those two ends, the model is too sensitive to a noisy input and you should say so — that observation is worth more marks than a precise-looking point estimate. Use *your own* measured usage, state the range you observed, and say which quantity you are scaling.
 
 Two of these are worth noticing before you use them. The `ml.t3.large` figure of 0.0958 hr is **5 min 45 s** — one successful Model Monitor analyzer run. The `ml.t3.medium` figure of 0.2283 hr is **13 min 42 s** — one analyzer run that ran out of memory and failed. **Failed jobs bill.** A cost model built only from successful runs understates the truth, and in early-stage ML the failures are frequently the larger number. Yours will be.
 

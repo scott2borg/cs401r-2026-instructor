@@ -68,15 +68,28 @@ def _build_pdf(src_path: str, out_path: str, eaie_dir: str, bib_file: str) -> bo
     return True
 
 
-def _compress_pdf(pdf_path: str) -> None:
-    """Ghostscript /ebook compression in-place. No-op if gs not found."""
+def _compress_pdf(pdf_path: str, setting: str | None = "/ebook") -> None:
+    """Ghostscript compression in-place. No-op if gs missing or setting is None.
+
+    /ebook is aggressive: measured on Ch01 it took an 18.5 MB chapter to 1.1 MB
+    but downsampled the worst figure to 12% of its pixels. These chapters are
+    full of architecture diagrams with small text labels, which is exactly what
+    that ruins. /printer keeps roughly 3x the detail at ~18% of original size.
+
+    Set `source.compress_pdfs` in course_config.yaml:
+        null / false  -> no compression (full resolution; ~143 MB for 16)
+        "/printer"    -> balanced
+        "/ebook"      -> smallest, softest figures
+    """
+    if not setting:
+        return
     gs = shutil.which("gs")
     if not gs:
         return
     tmp = pdf_path.replace(".pdf", "_c.pdf")
     subprocess.run([
         gs, "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4",
-        "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dQUIET", "-dBATCH",
+        f"-dPDFSETTINGS={setting}", "-dNOPAUSE", "-dQUIET", "-dBATCH",
         f"-sOutputFile={tmp}", pdf_path,
     ], capture_output=True)
     if os.path.exists(tmp):
@@ -150,7 +163,7 @@ def run(cfg: dict, api: CanvasAPI, module_ids: dict = None, rebuild: bool = Fals
             if not ok:
                 results.append((pdf_name, "BUILD FAILED", []))
                 continue
-            _compress_pdf(out_path)
+            _compress_pdf(out_path, cfg["source"].get("compress_pdfs"))
             size_mb = os.path.getsize(out_path) / 1024 / 1024
             print(f"    ✓ Built — {size_mb:.1f} MB")
 

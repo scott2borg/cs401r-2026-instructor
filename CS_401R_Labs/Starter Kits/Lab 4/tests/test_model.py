@@ -34,12 +34,11 @@ except ImportError:
     XGBOOST_AVAILABLE = False
 
 # ── CLI Option ─────────────────────────────────────────────────────────────────
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--model-path", action="store", default=None,
-        help="Path to trained XGBoost model (.xgb file)"
-    )
+#
+# --model-path is registered in tests/conftest.py, NOT here. pytest_addoption is
+# an initialisation hook and is only collected from conftest.py or an installed
+# plugin; defining it in a test module silently does nothing, and the run then
+# dies with "unrecognized arguments: --model-path" (defect 50).
 
 
 @pytest.fixture(scope="session")
@@ -145,7 +144,13 @@ class TestModelLoading:
         assert loaded_model is not None
 
     def test_model_has_expected_feature_count(self, loaded_model):
-        """Model should have been trained on exactly 12 features."""
+        """Model should have been trained on exactly 11 features.
+
+        Not 12. Twelve is the *data capture* column count in Lab 6, which adds
+        endpointOutput to the 11 model inputs -- a different number for a
+        different reason. Conflating them is how the Model Monitor baseline
+        ends up on the wrong column count.
+        """
         n_features = loaded_model.num_features()
         assert n_features == len(FEATURE_COLUMNS), (
             f"Model has {n_features} features, expected {len(FEATURE_COLUMNS)}. "

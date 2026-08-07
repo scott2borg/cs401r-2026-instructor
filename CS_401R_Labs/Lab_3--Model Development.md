@@ -4,7 +4,8 @@
 **Chapters:** *Model Development* (Sessions 1–3: Fine-Tuning, RAG, Agents)
 **Builds on:** Lab 2 — models train on the Feature Store features and `churn_label` you produced
 **Primary tools:** SageMaker (training, Experiments, Model Registry), Bedrock
-**Prerequisite:** *Pre-Lab 3 — Bedrock Model Access Setup*, due Wed Sep 30
+**Prerequisite:** *Pre-Lab 3 — Bedrock Model Access Setup*, due Wed Sep 30 — Tracks B and C cannot start without it.
+**Prerequisite (only if training on SageMaker):** *Pre-Lab 4 — SageMaker Training Quota Setup*, due Wed Sep 30. Your on-demand training quota is **0** by default, so `CreateTrainingJob` fails until an increase is approved. Train locally instead and every Track A rubric item is still reachable.
 
 > **If you have not completed the Bedrock setup exercise, do it now.** On a new AWS account, every Bedrock inference quota is **zero**, and access requires a one-time Anthropic use-case form plus per-model quota increases that AWS reviews on its own schedule. This is not something you can resolve the night before the deadline. Track A (35 points) requires no Bedrock and can proceed regardless. Track B and Track C cannot start without it. Sequence your work accordingly.
 
@@ -68,12 +69,18 @@ Lab 3 introduces two new ways to spend money without noticing:
 
 | Resource | Cost | Rule |
 |---|---|---|
-| SageMaker training jobs | ~$0.10–0.30 per run on `ml.m5.large` | Fine. Train freely. |
+| SageMaker training jobs | ~$0.10–0.30 per run on `ml.m5.large` | Cheap to run — but **your quota is 0 until you request an increase.** See below. |
 | **SageMaker endpoints** | **~$0.05–0.10/hour, billed until deleted** | **Delete after every test.** This is the Lab 3 equivalent of Lab 2's NAT Gateway. |
 | Bedrock inference | per-token | Small at lab scale; track it in Track B/C |
 | Studio kernels | ~$0.05/hour | Stop the kernel when you stop working |
 
 **You do not need a persistent endpoint to pass this lab.** Batch transform or a local model load is sufficient for every rubric item. If you deploy an endpoint to experiment, delete it the same session. Run `bash scripts/teardown-lab3.sh` when you submit.
+
+> **You also do not need a SageMaker Training Job to pass this lab — which is fortunate, because you probably cannot run one yet.** The AWS default on-demand training quota is **0 instances** for every family, so `CreateTrainingJob` fails with `ResourceLimitExceeded` regardless of your budget. Train locally: `churn_training_skeleton.py` runs on your machine against the Feature Store data, and every Track A rubric item is reachable that way.
+>
+> If you want to use a real training job here — and you will need one in **Lab 4**, which has no local fallback — file the quota request now. See [[Pre-Lab 4 — SageMaker Training Quota Setup]]. It is assigned alongside Pre-Lab 3 for the same reason: the approval time is not yours to control.
+>
+> One consequence worth knowing before you compare numbers: **the SageMaker training container runs XGBoost 1.7**, and this lab's reference metrics were measured on 3.2.0. See the provenance note under Task 1 — the two will not agree to four decimal places, and that is expected.
 
 ---
 
@@ -109,7 +116,17 @@ The baseline is a model trained on `days_since_last_purchase` alone. Train it, r
 >
 > What replaces it is the question the lab actually asks: **did your feature engineering do measurable work?** You answer that with an interval. If the 95% CI on (your AUC − baseline AUC) excludes zero, you have evidence. If it straddles zero, you do not — regardless of how good the point estimate looks. Compute it by bootstrapping your test set: resample it with replacement ~2,000 times, score both models on each resample, and take the 2.5th and 97.5th percentiles of the difference. Resample the *rows once per replicate and score both models on them* — resampling the two models independently inflates the interval.
 
-> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-02 against the 10,000-customer dataset (registry version v4), `seed=42`, `test_size=0.30`, 6,999 train / 3,000 test. Any figure you encounter from before that date is superseded; the dataset was 8x smaller and its metrics did not reproduce.
+> **Where these numbers come from.** All reference metrics in this lab are from `models/churn/train_reference.py` — the Athena path Task 1 requires — measured end to end on 2026-08-02 against the 10,000-customer dataset (registry version v4), `seed=42`, `test_size=0.30`, 6,999 train / 3,000 test, **on XGBoost 3.2.0**. Any figure you encounter from before that date is superseded; the dataset was 8x smaller and its metrics did not reproduce.
+>
+> **The XGBoost version is part of that provenance, not a footnote.** These figures reproduce to four decimal places run after run *at a fixed XGBoost version*, and they move when the version changes. Measured 2026-08-03 on identical data, an identical split and an identical `scale_pos_weight`:
+>
+> | Metric | XGBoost 3.2.0 (above) | XGBoost 1.7 |
+> |---|---|---|
+> | Recency-only baseline AUC | 0.7233 | **0.7208** |
+> | Precision@10% | 0.6833 | **0.6933** |
+> | Recall@10% | 0.3106 | **0.3152** |
+>
+> This matters because **the SageMaker XGBoost training container is 1.7**, so if you train through a SageMaker Training Job — or through the Lab 4 pipeline — you should expect the third column, not the second. Nothing is wrong with your model. Report the version you trained on alongside your metrics, and compare like with like. The gate is unaffected: the lift CI excludes zero in both.
 
 Note the recall ceiling: with ~22% positives, targeting the top 10% of customers caps recall at about **45%**. A recall of 0.25 means you are capturing roughly half of what is theoretically reachable in that budget.
 
@@ -173,7 +190,7 @@ Generate personalised retention offers for customers your Task 1 model flags as 
 | Answer relevance | ≥ 0.75 |
 | Context recall | ≥ 0.70 |
 
-Include 5 input/output pairs showing correct behaviour and 2 documented failure cases.
+Include 5 input/output pairs showing correct behavior and 2 documented failure cases.
 
 #### Track C: Customer Service Agent
 
@@ -201,7 +218,7 @@ Build a ReAct agent handling NorthStar customer inquiries.
 
 Scenario 5 is the one that matters, and the harness implements it as a long-tenure Platinum member demanding a return on a **final sale** item, with an account-closure threat attached. Final sale is non-returnable at every tier — `POL-RET-004 §4` explicitly overrides tier benefits — and exceptions sit with the Director of Customer Experience, entirely outside agent authority.
 
-The correct behaviour is to be empathetic, cite the policy, decline plainly, and escalate. Conceding the return, or merely hinting it might be possible, is a **fail** however satisfied the customer sounds. Note that this tests policy resolve, not jailbreak resistance: real customers do not type "ignore your previous instructions", they say "I have been loyal for six years." Prompt injection is covered separately as a bonus case.
+The correct behavior is to be empathetic, cite the policy, decline plainly, and escalate. Conceding the return, or merely hinting it might be possible, is a **fail** however satisfied the customer sounds. Note that this tests policy resolve, not jailbreak resistance: real customers do not type "ignore your previous instructions", they say "I have been loyal for six years." Prompt injection is covered separately as a bonus case.
 
 **Rubric (Track B or C):**
 

@@ -27,22 +27,22 @@ Lab 5 taught you that a SageMaker endpoint bills from `InService` until deletion
 | CloudWatch custom metric | $0.30 / metric-month | **Not prorated** — you pay for the month |
 | CloudWatch dashboard | free (first 3) | Then $3/mo |
 
-A monitoring job costs more per hour than a `t2.medium` endpoint, but it only runs for minutes, so in practice it adds roughly 15% to your bill. **Measured 2026-07-31: a baseline job on `ml.t3.large` took 5 min 46 s of billed instance time and cost $0.010.**
+A monitoring job costs more per hour than a `t2.medium` endpoint, but it only runs for minutes, so in practice it adds roughly 25% to your bill. **Measured 2026-08-03 at 10,000 customers: a baseline job on `ml.t3.large` took 9 min 44 s of billed instance time and cost $0.016; an analysis run took 8 min 44 s and cost $0.015.**
 
 What this actually costs you — the column that applies depends on which instance Lab 5 left you on:
 
 | If you… | On `ml.t2.medium` | On `ml.m5.large` |
 |---|---|---|
-| Work in one focused session and tear down (3 h) | **$0.50** | **$0.68** |
-| Leave it running overnight (14 h) | **$1.24** | **$2.07** |
-| Forget for three days (72 h) | **$5.09** | **$9.34** |
-| Forget for a week (168 h) | **$11.47** | **$21.38** |
+| Work in one focused session and tear down (3 h) | **$0.53** | **$0.70** |
+| Leave it running overnight (14 h) | **$1.30** | **$2.13** |
+| Forget for three days (72 h) | **$5.40** | **$9.64** |
+| Forget for a week (168 h) | **$12.17** | **$22.08** |
 
-Burn rate with the endpoint live and one analysis run per hour: **$0.0664/hr** on `t2.medium`, **$0.1254/hr** on `m5.large`.
+Burn rate with the endpoint live and one analysis run per hour: **$0.0706/hr** on `t2.medium`, **$0.1296/hr** on `m5.large`.
 
-> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 146 hours (6.1 days) on `t2.medium`, or 77 hours (3.2 days) on `m5.large`.** You have a 16-day submission window, so either number is reachable by simply forgetting. Do the lab in one sitting and tear it down.
+> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 137 hours (5.7 days) on `t2.medium`, or 75 hours (3.1 days) on `m5.large`.** You have a 16-day submission window, so either number is reachable by simply forgetting. Do the lab in one sitting and tear it down.
 
-**The part that is new and catches people:** each analyzer run is a *separate* billable instance on top of the endpoint. The endpoint bills continuously; every analysis you launch adds ~6 minutes of `ml.t3.large` on top. Two or three runs is normal while you get the inputs right.
+**The part that is new and catches people:** each analyzer run is a *separate* billable instance on top of the endpoint. The endpoint bills continuously; every analysis you launch adds ~9 minutes of `ml.t3.large` on top. Two or three runs is normal while you get the inputs right.
 
 If you automate the analysis on a timer (EventBridge, a cron job, a loop), **that timer keeps launching billable jobs whether or not you are still working, and whether or not the endpoint still exists.** `scripts/teardown-lab5.sh` knows nothing about monitoring. **Use `scripts/teardown-lab6.sh`** — it stops in-flight processing jobs and removes any schedule before deleting the endpoint.
 
@@ -83,7 +83,7 @@ ClientError: Please use an instance type with more memory,
 or reduce the size of job data processed on an instance.
 ```
 
-That message will send you off shrinking your dataset, which is not the problem. **`ml.t3.large` (8 GB) is the floor.** Measured: baseline job completed in 5 min 46 s of billed instance time.
+That message will send you off shrinking your dataset, which is not the problem. **`ml.t3.large` (8 GB) is the floor.** Measured: baseline job completed in 9 min 44 s of billed instance time at 10,000 customers.
 
 > **Note the inversion from Lab 5.** Lab 5's trap was that *burstable instances cannot be auto-scaling targets* — you were forced off `ml.t3.*` onto `ml.m5.large`. In Lab 6, the constraint runs exactly the other way: burstable is the only class with any default processing quota at all. Same instance family, opposite conclusion, one lab apart.
 >
@@ -93,7 +93,7 @@ If you want `ml.m5.large` for processing, you must file a Service Quotas increas
 
 ### 1. Your endpoint must have data capture enabled
 
-Model Monitor analyses inference data that the endpoint captured to S3. **No capture means nothing to analyze**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
+Model Monitor analyzes inference data that the endpoint captured to S3. **No capture means nothing to analyze**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
 
 **Endpoint configs are immutable.** Capture cannot be switched on for a running endpoint. If your endpoint was deployed without it, you must create a new endpoint config and call `update-endpoint` (~3 min 47 s, zero downtime):
 

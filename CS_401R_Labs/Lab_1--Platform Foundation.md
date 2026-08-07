@@ -142,8 +142,9 @@ Create all four prefixes now. They will be used starting in Lab 2.
 
 ## Starter Kit (Canvas: Lab 1)
 
-- `northstar-overview.md` — NorthStar Retail case description
-- `terraform-module-template/` — empty module directory structure (Part B)
+- `northstar-scenario-overview.md` — NorthStar Retail case description
+- `NorthStar_Retail_AI_Platform.pptx` — the case briefing deck
+- `terraform-module-template/` — skeleton module structure for Part B: four empty modules (vpc, storage, iam, sagemaker) plus a dev environment, every variable declared and documented, every resource left as a TODO. It ships passing `terraform fmt -check -recursive` and `terraform validate`, so you start green — keep it that way, it is 5 of the 15 points in Task B1.
 - `aws-account-setup.md` — AWS account setup, credit budget, and cost controls
 - `northstar-data-schema.md` — data source schemas
 
