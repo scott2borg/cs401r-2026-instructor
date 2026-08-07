@@ -8,7 +8,7 @@ purpose: The Labs 2→5 end-to-end run finally executed. It passed. It also foun
 # Session Handoff — Labs 2→5 End-to-End Run
 
 
-> **⚠ Superseded 2026-08-03 by [[Session Handoff — Dataset Rebase & Gate Redesign]]** on metrics, gates, dataset size and defects 39–48. Every model figure in this note — including the 0.7276 set it introduced as canonical — came from the retired 1,200-customer dataset on a non-deterministic Athena pull and does not reproduce. The AWS-mechanics observations still stand. Retained as the record of how defect 45 was found.
+> **⚠ Superseded 2026-08-03 by [[Session Handoff — Labs Dataset Rebase & Gate Redesign]]** on metrics, gates, dataset size and defects 39–48. Every model figure in this note — including the 0.7276 set it introduced as canonical — came from the retired 1,200-customer dataset on a non-deterministic Athena pull and does not reproduce. The AWS-mechanics observations still stand. Retained as the record of how defect 45 was found.
 
 > **Read this before the next session.** It supersedes [[Session Handoff — Lab 7 to Course Close]] on the items below and leaves the rest of that note standing.
 >
@@ -136,7 +136,18 @@ Three consequences worth knowing before you grade anything:
 
 - **The AUC gate margin collapsed from +0.027 to +0.0076.** 0.7276 against a 0.72 threshold is close. Expect real near-misses from students and grade the method, not the third decimal. This is called out in the Lab 3 solution note.
 - **Lab 7 Task 3 re-derived.** 378,000 × 0.3333 = **125,987** in the contactable decile → required save rate **66.7%** (was 75.8%). Downstream: 15,118 saved/yr, $5.14M, ROI **21.1x**, churn moves 0.72 pp, break-even save rate **0.569%**. The finding survives — the CDO's 4 pp target is still unreachable, now by ~5.5x rather than 6x.
-- **The slice AUCs were NOT re-measured.** Bronze 0.809 / Gold 0.745 / Silver 0.688 / Platinum 0.430 are from the 2026-07-28 run; the 2026-08-01 pass did not capture slice output before teardown. The Lab 3 solution note now says so explicitly. **The Platinum finding is structural and will survive a re-run; the numbers are pending.** Capture `slices` from `train_reference.py` on the next apply and close this — it is the last unreproducible figure in the course.
+- **The slice AUCs were NOT re-measured.** Bronze 0.809 / Gold 0.745 / Silver 0.688 / Platinum 0.430 are from the 2026-07-28 run; the 2026-08-01 pass did not capture slice output before teardown. The Lab 3 solution note now says so explicitly. ~~**The Platinum finding is structural and will survive a re-run; the numbers are pending.**~~ Capture `slices` from `train_reference.py` on the next apply and close this — it is the last unreproducible figure in the course.
+  > **⚠ CLOSED and the prediction FALSIFIED (2026-08-06).** The slice AUCs were
+  > captured on the 2026-08-03 rebase and re-confirmed on a full rebuild
+  > 2026-08-06. **The Platinum finding did not survive.** Platinum went 0.430 →
+  > **0.8483** (n=41 → n=307): worst slice to best. The worst slice is now
+  > **Silver, 0.6935** (n=1,139). The prediction above was wrong because it
+  > treated a ~2-positive estimate as a structural property rather than noise —
+  > which is the lesson Lab 3 now teaches in its place. This was the last
+  > unreproducible figure in the course; it is closed. Canonical numbers in
+  > [[Session Handoff — Labs Dataset Rebase & Gate Redesign]], and permanently
+  > in the registry metadata as `slice_worst_tier=Silver` /
+  > `slice_worst_auc=0.6935`.
 
 **Defect 39 — `raw_customers`. CLOSED, docs side.** The crawler creates `customers` and that path is verified end to end, so the docs moved rather than the infrastructure. Lab 2, `CS 401R Labs.md`, the Lab 2 solution note and the `modules/glue/main.tf` comments all say `customers` now, with a one-line note explaining why (no `TablePrefix`, prefix is `raw/customers/`). Old submissions using `raw_customers` are still accepted.
 
@@ -183,6 +194,13 @@ A 360-row holdout cannot support a point estimate. Three things need deciding, a
 
 **2. Where the gates go.** Measured: AUC mean 0.7120 (sd 0.0291), lift mean 0.0604 (sd 0.0328). The ≥0.72 AUC gate fails on 58% of splits and the ≥0.03 lift gate on 21% — the lift threshold is smaller than the metric's own standard deviation. P@10% (≥0.50) and R@10% (≥0.25) fail on 1% and 2.5% and are well calibrated; leave them alone.
 
-**3. What happens to the Platinum item.** It is worse-than-random on 34.9% of splits and undefined on 5.5%. As written it is a coin flip. The honest replacement is arguably a better lesson than the original: *a slice of ~33 customers with ~2 positives cannot support any claim; report the interval and refuse to conclude.* That preserves the 5 points and teaches something truer, but it is a rewrite of Lab 3's centrepiece, not an edit.
+**3. What happens to the Platinum item.** ~~It is worse-than-random on 34.9% of splits and undefined on 5.5%. As written it is a coin flip.~~ The honest replacement is arguably a better lesson than the original: *a slice of ~33 customers with ~2 positives cannot support any claim; report the interval and refuse to conclude.* That preserves the 5 points and teaches something truer, but it is a rewrite of Lab 3's centrepiece, not an edit.
+
+> **✅ DECIDED and IMPLEMENTED 2026-08-03.** The rewrite was done. Lab 3 now
+> teaches the spread across tiers plus the sample-size lesson, the rubric
+> requires per-tier `n` and an explicit statement of which slices are too small
+> to conclude from, and the villain is **Silver**, not Platinum. The corrected
+> text lives at `Lab_3--Model Development.md` and is synced into the master.
+> No decision is outstanding here.
 
 **Downstream if any of this moves:** Lab 4's CI quality gate reuses the same thresholds; Lab 6 Task 4's SLO justification and Lab 7 Task 3's graded arithmetic both consume single-draw values.

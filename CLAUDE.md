@@ -78,9 +78,22 @@ Not a quota. Not a permission. The API is closed to accounts that were not alrea
 - Budget alarm is **$10/month** → scott@toborg.com. It is shared across the whole project.
 - Endpoints bill hourly until deleted; rolling back to weight 0 does not stop the charge.
 - Monitoring schedules keep launching billable processing jobs after the endpoint is gone.
-- Lab 6 burn rate with endpoint + hourly schedule: **$0.1254/hr**; $10 breached at 77 hours.
+- Lab 6 burn rate with endpoint + hourly schedule: **$0.1296/hr** on `ml.m5.large`, **$0.0706/hr** on `ml.t2.medium`; $10 breached at 75 and 137 hours respectively. Re-derived at the 10,000-customer dataset 2026-08-03. Job durations corrected 2026-08-06 against `describe-processing-job`: `nsc-baseline-1785768831` and `nsc-analysis-1785768831` each ran **5 m 36 s** of billable `ProcessingTime` on `ml.t3.large`; create-to-end wall clock was 6 m 27 s and 10 m 09 s. The previously recorded "9 m 44 s / 8 m 44 s" matched no job in the account.
 
 ## Authority rules
 
 - The live repo `/Users/scott1/northstar-ai-platform` is authoritative; `Sample Solutions/` is a copy kept in sync.
 - **Standalone `Lab_N--*.md` is authoritative over the master `CS 401R Labs.md`**, which is synced to match and verified byte-identical.
+
+## Canvas
+
+The Canvas course (**34609**) is built by `build_course.py` at the project root.
+**Runbook: `Canvas Update Process.md`.** Read its "Canvas API gotchas" section
+before debugging anything — Canvas silently ignores unknown parameters, applies
+defaults, and returns success, which caused every hard bug on 2026-08-05/06.
+
+- Canvas is a **derived artifact**. Source of truth is `CS_401R_Labs/*.md` and
+  `course_config.yaml`. Never edit a lab description in the Canvas UI; the next
+  run overwrites it.
+- `Canvas LMS/_superseded/` holds the retired `canvas_builder.py`. Do not run it.
+- For any file problem, start with `python debug_files.py`.

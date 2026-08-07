@@ -75,7 +75,28 @@ Features come from ≤ T; `churn_label` from the holdout. Roughly **21%** churn.
 
 Reference implementation: `models/churn/train_reference.py`. It writes `artifacts/evaluations/latest/evaluation_metrics.json` including **`baseline_auc_roc`** — the field Lab 4's CI quality gate reads.
 
-### The Platinum finding (central to Lab 3's TA guide, relevant to Lab 4 fairness tests)
+### The Platinum finding (RETRACTED — see banner below)
+
+> **⚠ Retracted 2026-08-06.** The banner at the top of this note covers the
+> aggregate metrics only; this section was not covered and said the opposite of
+> what is true. **The Platinum finding reversed.** At 1,200 customers Platinum
+> was ~33 test rows with ~2 churners, and its AUC ranged 0.00–1.00 across 200
+> splits — it read "worse than random" on only 34.9% of them. On the 10,000-
+> customer dataset Platinum has n=307 and is the model's **best** slice at
+> **0.8483**. The worst slice is **Silver** (n=1,139, **0.6935**), the largest
+> tier. Canonical slice figures, reproduced independently three times, most
+> recently on a full teardown-and-rebuild 2026-08-06:
+>
+> | Tier | n | AUC | Churn |
+> |---|---|---|---|
+> | Platinum | 307 | 0.8483 | 6.8% |
+> | Gold | 483 | 0.7559 | 10.8% |
+> | Bronze | 1,071 | 0.7442 | 33.7% |
+> | **Silver** | 1,139 | **0.6935** | 19.8% |
+>
+> See [[Session Handoff — Labs Dataset Rebase & Gate Redesign]]. Lab 3 was
+> rewritten around the spread across tiers plus the sample-size lesson; do not
+> teach or grade the 0.430 claim.
 
 Slice AUC: Bronze 0.809 · Gold 0.745 · Silver 0.688 · **Platinum 0.430** (worse than random, n=41, ~3 positives). Aggregate 0.747 hides it entirely. Lab 4's `test_fairness.py` requirement should surface this same class of problem.
 
