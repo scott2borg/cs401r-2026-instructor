@@ -14,6 +14,7 @@ NOT idempotent. To start over: Course Settings → Reset Course Content, then re
 """
 
 import os
+import pathlib
 import sys
 from datetime import datetime, timedelta, timezone
 import requests
@@ -120,6 +121,142 @@ ASSIGNMENT_GROUPS = [
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Canvas Files upload
+#
+# Canvas uploads are a three-step handshake, not a single POST:
+#   1. POST /files announcing name/size/type  -> returns a one-time upload_url
+#      and a dict of upload_params that must be sent EXACTLY as given
+#   2. POST the file to that upload_url as multipart. This request must NOT
+#      carry the Authorization header -- the pre-signed URL already authorises
+#      it, and sending the bearer token makes S3 reject the request
+#   3. The response redirects to a confirmation URL returning the file JSON
+# ─────────────────────────────────────────────────────────────────────────────
+
+def upload_course_file(local_path, folder_path, display_name=None, content_type="text/html"):
+    """Upload one file into a Canvas course Files folder. Returns the file id."""
+    local_path = pathlib.Path(local_path)
+    if not local_path.exists():
+        print(f"  ✗ missing: {local_path}")
+        return None
+    name = display_name or local_path.name
+    size = local_path.stat().st_size
+
+    step1 = post("/files", {
+        "name":               name,
+        "size":               size,
+        "content_type":       content_type,
+        "parent_folder_path": folder_path,
+        # Re-running the builder should replace the guide, not accumulate
+        # "guide-1.html", "guide-2.html" beside it.
+        "on_duplicate":       "overwrite",
+    }, f"announce {name}")
+    if not step1 or "upload_url" not in step1:
+        print(f"  ✗ no upload_url returned for {name}")
+        return None
+
+    with open(local_path, "rb") as fh:
+        r2 = requests.post(step1["upload_url"],
+                           data=step1.get("upload_params", {}),
+                           files={"file": (name, fh, content_type)})
+    if not r2.ok:
+        print(f"  ✗ upload failed for {name}: {r2.status_code} {r2.text[:200]}")
+        return None
+
+    try:
+        info = r2.json()
+    except ValueError:
+        print(f"  ✗ non-JSON confirm response for {name}")
+        return None
+
+    fid = info.get("id")
+    print(f"  ✓ uploaded {name} (file id {fid})")
+    return fid
+
+
+def md_to_html(md_path):
+    """Render a guide to standalone HTML so Canvas previews it in-browser.
+
+    A raw .md in Canvas Files downloads as plain text rather than rendering,
+    which is a poor way to deliver a 260-line guide a student needs to follow
+    step by step.
+    """
+    try:
+        import markdown
+    except ImportError:
+        sys.exit("ERROR: pip install markdown  (needed to render the pre-lab guides)")
+    body = markdown.markdown(
+        pathlib.Path(md_path).read_text(),
+        extensions=["tables", "fenced_code", "toc", "sane_lists"],
+    )
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{pathlib.Path(md_path).stem}</title>
+<style>
+ body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+      line-height:1.55;max-width:52rem;margin:2rem auto;padding:0 1.25rem;color:#1a1a1a}}
+ code{{background:#f4f4f4;padding:.12em .35em;border-radius:3px;font-size:.92em}}
+ pre{{background:#f4f4f4;padding:1rem;border-radius:5px;overflow-x:auto}}
+ pre code{{background:none;padding:0}}
+ table{{border-collapse:collapse;width:100%;margin:1rem 0}}
+ th,td{{border:1px solid #ccc;padding:.5rem .6rem;text-align:left;vertical-align:top}}
+ th{{background:#f0f0f0}}
+ blockquote{{border-left:4px solid #c8102e;margin:1rem 0;padding:.4rem 1rem;background:#fafafa}}
+ h1,h2,h3{{line-height:1.25}} hr{{border:none;border-top:1px solid #ddd;margin:2rem 0}}
+</style></head><body>
+{body}
+</body></html>"""
+
+
+VAULT_LABS = pathlib.Path(__file__).resolve().parent.parent / "CS_401R_Labs"
+
+PRELAB_GUIDES = {
+    3: VAULT_LABS / "Pre-Lab 3 — Bedrock Access Setup.md",
+    4: VAULT_LABS / "Pre-Lab 4 — SageMaker Training Quota Setup.md",
+}
+
+# Filled in by build_prelab_files(); consumed by the {{PRELAB_N_LINK}}
+# placeholders in the lab and pre-lab HTML.
+PRELAB_FILE_IDS = {}
+
+
+def build_prelab_files():
+    """Render both pre-lab guides to HTML and upload them to Canvas Files."""
+    print("\n── Pre-Lab Guides → Canvas Files ──")
+    import tempfile
+    for n, md in PRELAB_GUIDES.items():
+        if not md.exists():
+            print(f"  ✗ guide not found: {md}")
+            continue
+        html = md_to_html(md)
+        with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8") as tmp:
+            tmp.write(html)
+            tmp_path = tmp.name
+        fid = upload_course_file(tmp_path, "course files/Pre-Lab Guides",
+                                 display_name=f"{md.stem}.html")
+        os.unlink(tmp_path)
+        if fid:
+            PRELAB_FILE_IDS[n] = fid
+
+
+def prelab_link(n, text=None):
+    """An <a> to the uploaded guide, or honest fallback text if absent."""
+    fid = PRELAB_FILE_IDS.get(n)
+    label = text or f"Pre-Lab {n} — full guide"
+    if not fid:
+        return f"<em>{label} (see the course repository)</em>"
+    return (f'<a class="instructure_file_link inline_disabled" '
+            f'href="/courses/{COURSE_ID}/files/{fid}?wrap=1" '
+            f'target="_blank" rel="noopener">{label}</a>')
+
+
+def resolve_links(html):
+    """Swap {{PRELAB_N_LINK}} placeholders for real Canvas file links."""
+    for n in (3, 4):
+        html = html.replace(f"{{{{PRELAB_{n}_LINK}}}}", prelab_link(n))
+    return html
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Lab Assignment HTML Descriptions
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -201,6 +338,13 @@ LAB_HTML[3] = """
 <strong>Chapters:</strong> <em>Model Development</em> (Fine-Tuning, RAG, Agents)<br>
 <strong>Builds on:</strong> Labs 1–2 — models train on Feature Store features from Lab 2</p>
 
+<p style="border-left:4px solid #c8102e;padding:.5rem .9rem;background:#fafafa">
+<strong>Prerequisites (both were assigned Sep 17, due Sep 30):</strong><br>
+{{PRELAB_3_LINK}} &mdash; Tracks B and C cannot start without Bedrock access.<br>
+{{PRELAB_4_LINK}} &mdash; needed only if you want to train via a SageMaker Training Job.
+<strong>Your on-demand training quota is 0 by default</strong>, so train locally unless that
+increase has been approved. Track A is fully reachable with local training.</p>
+
 <h2>Objective</h2>
 <p>Implement two of NorthStar's three AI systems: the churn prediction model (required) plus one
 LLM-based system of your choice. This is where the platform starts doing something that matters
@@ -227,7 +371,7 @@ and declare your choice in <code>docs/lab3-model-design.md</code> before coding.
 <h2>Tasks &amp; Point Breakdown</h2>
 <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%">
   <tr><th>Task</th><th style="text-align:center">Points</th></tr>
-  <tr><td>Task 1 — Churn Prediction Model: Track A (AUC-ROC ≥ 0.72, slice eval, Model Registry)</td><td style="text-align:center">35</td></tr>
+  <tr><td>Task 1 — Churn Prediction Model: Track A (precision@10% &ge; 0.50, recall@10% &ge; 0.25, lift CI over the recency baseline excludes zero; AUC reported, not gated. Plus slice eval and Model Registry)</td><td style="text-align:center">35</td></tr>
   <tr><td>Task 2 — LLM System: Track B (RAGAS eval) or Track C (5 test scenarios with traces)</td><td style="text-align:center">35</td></tr>
   <tr><td>Task 3 — Approach Justification (~500 words: why XGBoost, why RAG/agent, what you'd change)</td><td style="text-align:center">20</td></tr>
   <tr><td>Task 4 — Repository Quality (parameterized, Lab 1 infra reused, README updated)</td><td style="text-align:center">10</td></tr>
@@ -243,6 +387,13 @@ LAB_HTML[4] = """
 <p><strong>Assigned:</strong> Thu Oct 15 &nbsp;|&nbsp; <strong>Due:</strong> Sat Oct 31, 11:59 PM MDT<br>
 <strong>Chapters:</strong> <em>XOps Stack</em>, <em>Testing &amp; Evaluation</em>, <em>Continuous Delivery</em><br>
 <strong>Builds on:</strong> Labs 1–3 — automates the lifecycle of your Lab 3 churn model</p>
+
+<p style="border-left:4px solid #c8102e;padding:.5rem .9rem;background:#fafafa">
+<strong>Hard prerequisite:</strong> {{PRELAB_4_LINK}} (assigned Sep 17, due Sep 30).
+This lab's pipeline runs a <strong>SageMaker Training Job</strong>, and the AWS default on-demand
+training quota is <strong>zero</strong> &mdash; the job fails with <code>ResourceLimitExceeded</code>
+before it starts. <strong>Unlike Lab 3 there is no local fallback here.</strong> If you have not
+filed the increase, do it now and read the spot-training fallback in the guide.</p>
 
 <h2>Objective</h2>
 <p>Automate everything. A model that requires manual steps to test, evaluate, and deploy is not
@@ -260,7 +411,7 @@ the way to a model approved for deployment, without human intervention in the ha
 <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%">
   <tr><th>Task</th><th style="text-align:center">Points</th></tr>
   <tr><td>Task 1 — Test Suite (data, feature unit, model eval, fairness — runs via <code>pytest tests/</code>)</td><td style="text-align:center">30</td></tr>
-  <tr><td>Task 2 — CI/CD Pipeline (5 stages: source → test → build → evaluate → register)</td><td style="text-align:center">30</td></tr>
+  <tr><td>Task 2 — CI/CD Pipeline (5 phases: source → test → build → evaluate → register, mapped onto your pipeline&#39;s stages)</td><td style="text-align:center">30</td></tr>
   <tr><td>Task 3 — MLOps Configuration (champion-challenger, retraining triggers, lineage)</td><td style="text-align:center">20</td></tr>
   <tr><td>Task 4 — XOps Maturity Assessment (~400 words: DataOps + MLOps levels with evidence)</td><td style="text-align:center">20</td></tr>
   <tr><td><strong>Total</strong></td><td style="text-align:center"><strong>100</strong></td></tr>
@@ -453,6 +604,95 @@ TEAM_SIGNUP_HTML = """
 Teams cannot change after Nov 25 without instructor approval.</p>
 <p><strong>Submit:</strong> List each team member's full name and NetID, one per line.</p>
 """
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pre-Lab Exercises
+#
+# These existed as markdown in the vault and were assigned in the lab headers,
+# but were never created in Canvas by this builder -- so students could not see
+# them. Both gate later labs and both depend on AWS approval times that are not
+# ours to control, which is the entire reason they are assigned in September.
+#
+# 0 points on purpose: each is graded inside the lab it gates (Pre-Lab 3 within
+# Lab 3 Task 4, Pre-Lab 4 within Lab 4 Task 2). The due date is what matters --
+# it puts them on the student calendar and to-do list.
+# ─────────────────────────────────────────────────────────────────────────────
+
+PRELAB_HTML = {}
+
+PRELAB_HTML[3] = """
+<p><strong>Assigned:</strong> Thu Sep 17 (with Lab 2) &nbsp;|&nbsp; <strong>Due:</strong> Wed Sep 30<br>
+<strong>Effort:</strong> ~30 minutes of your time, then waiting on AWS<br>
+<strong>Counts toward:</strong> Lab 3 Task 4. <strong>Lab 3 Track B and C cannot start without it.</strong></p>
+
+<p>Lab 3 Tracks B and C require Amazon Bedrock. Access is <strong>opt-in and not instant</strong> &mdash; a one-time
+Anthropic use-case form, per-model enablement, and possibly quota increases that AWS reviews on its own
+schedule. Until you enable a model, every Bedrock inference quota on your account reads <strong>zero</strong>,
+regardless of how old the account is.</p>
+
+<p><strong>Do this while you are working on Lab 2.</strong> Do not wait until Lab 3 is assigned.</p>
+
+<p>Watch for two misleading errors: <code>ResourceNotFoundException: Model use case details have not been
+submitted</code> means the form is outstanding; <code>ThrottlingException: Too many tokens per day</code> does
+<em>not</em> mean you used your allowance &mdash; it means your allowance is zero.</p>
+
+<p><strong>Deliverable:</strong> <code>docs/bedrock-access-verification.txt</code> with your verification output,
+your quota values, and one paragraph justifying the capacity you requested. That last part is the real
+assignment.</p>
+
+<p><strong>Full instructions:</strong> {{PRELAB_3_LINK}}</p>
+"""
+
+PRELAB_HTML[4] = """
+<p><strong>Assigned:</strong> Thu Sep 17 (with Lab 2) &nbsp;|&nbsp; <strong>Due:</strong> Wed Sep 30<br>
+<strong>Effort:</strong> ~20 minutes of your time, then waiting on AWS<br>
+<strong>Counts toward:</strong> Lab 4 Task 2. <strong>Lab 4 cannot be completed without it &mdash; there is no local fallback.</strong></p>
+
+<p>Lab 4&#39;s pipeline runs a <strong>SageMaker Training Job</strong>. On a new AWS account the on-demand training
+quota for every instance family is <strong>zero</strong>, so that job fails with <code>ResourceLimitExceeded</code>
+before it starts. This is not a billing limit you can spend past &mdash; no capacity is allocated to your
+account until you ask for some.</p>
+
+<p>Lab 4 is not assigned until <strong>Oct 15</strong>, and that is the point: you are filing six weeks early
+because the approval time is not yours to control. Same lesson as Pre-Lab 3.</p>
+
+<p><strong>The trap:</strong> <code>get-service-quota</code> tells you what <em>your</em> account has;
+<code>get-aws-default-service-quota</code> tells you what a <em>new</em> account starts with. Accounts that have
+been used a while accrue elevated quotas quietly. Check both &mdash; the smaller one is the truth for you.</p>
+
+<pre><code>aws service-quotas get-aws-default-service-quota \
+  --service-code sagemaker --quota-code L-611FA074
+
+aws service-quotas request-service-quota-increase \
+  --service-code sagemaker --quota-code L-611FA074 --desired-value 2</code></pre>
+
+<p>Ask for <strong>2, not 20</strong>, and be ready to defend the number. If approval is slow, spot training has a
+non-zero default (4 for <code>ml.m5.large</code>) &mdash; see Step 3 of the full guide.</p>
+
+<p><strong>Deliverable:</strong> <code>docs/training-quota-verification.txt</code> showing the AWS default beside
+your applied value, your request status, and one paragraph on what you requested, why that number, and your
+fallback.</p>
+
+<p><strong>Full instructions:</strong> {{PRELAB_4_LINK}}</p>
+"""
+
+PRELABS = [
+    {
+        "name":      "Pre-Lab 3 — Bedrock Model Access Setup",
+        "due_at":    due("2026-09-30"),
+        "unlock_at": mdt("2026-09-17", 9, 0),
+        "html":      PRELAB_HTML[3],
+        "module":    "Week 03 — Platform II + Data Engineering I (Sep 15–17)",
+    },
+    {
+        "name":      "Pre-Lab 4 — SageMaker Training Quota Setup",
+        "due_at":    due("2026-09-30"),
+        "unlock_at": mdt("2026-09-17", 9, 0),
+        "html":      PRELAB_HTML[4],
+        "module":    "Week 03 — Platform II + Data Engineering I (Sep 15–17)",
+    },
+]
+
 
 FINAL_ASSIGNMENTS = [
     {
@@ -742,7 +982,7 @@ def build_labs(module_ids, group_ids):
         r = post("/assignments", {
             "assignment": {
                 "name":                 lab["name"],
-                "description":          lab["html"],
+                "description":          resolve_links(lab["html"]),
                 "due_at":               lab["due_at"],
                 "unlock_at":            lab["unlock_at"],
                 "points_possible":      100,
@@ -754,6 +994,33 @@ def build_labs(module_ids, group_ids):
         }, lab["name"])
         if r:
             add_to_module(module_ids, lab["module"], "Assignment", r["id"], lab["name"])
+
+
+def build_prelabs(module_ids, group_ids):
+    """Create the two pre-lab exercises as 0-point, due-dated assignments.
+
+    0 points is deliberate: each is graded inside the lab it gates. The due
+    date is the payload -- it is what puts these on the calendar early enough
+    for the AWS approval time to elapse.
+    """
+    print("\n── Pre-Lab Exercises ──")
+    lab_gid = group_ids.get("Labs")
+    for pl in PRELABS:
+        r = post("/assignments", {
+            "assignment": {
+                "name":                 pl["name"],
+                "description":          resolve_links(pl["html"]),
+                "due_at":               pl["due_at"],
+                "unlock_at":            pl["unlock_at"],
+                "points_possible":      0,
+                "assignment_group_id":  lab_gid,
+                "submission_types":     ["online_text_entry", "online_upload"],
+                "allowed_attempts":     -1,
+                "published":            False,
+            }
+        }, pl["name"])
+        if r:
+            add_to_module(module_ids, pl["module"], "Assignment", r["id"], pl["name"])
 
 
 def build_final_project(module_ids, group_ids):
@@ -873,6 +1140,73 @@ def update_canvas_syllabus_tab():
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
 
+def sync_prelabs_and_labs():
+    """Additive, re-runnable update for a course that already exists.
+
+    main() is NOT idempotent -- running it twice duplicates every assignment,
+    and the documented remedy is Reset Course Content, which wipes the course.
+    That is far too blunt for adding two pre-labs and correcting a rubric line.
+
+    This mode instead:
+      * uploads the pre-lab guides (overwrite-on-duplicate, so safe to repeat)
+      * UPDATES Lab 3 and Lab 4 descriptions in place, matched by name
+      * creates the two pre-lab assignments, or updates them if already present
+    It never creates a second copy of anything.
+    """
+    print("CS 401R Canvas — additive sync (no duplicates, no reset)")
+    print(f"Target: {BASE_URL}/courses/{COURSE_ID}\n")
+
+    build_prelab_files()
+
+    existing = {a["name"]: a["id"] for a in get_all("/assignments")}
+    print(f"\n── Found {len(existing)} existing assignments ──")
+
+    # Lab bodies that gained prerequisite banners
+    print("\n── Updating lab descriptions ──")
+    for idx, lab in enumerate(LABS):
+        if idx + 1 not in (3, 4):
+            continue
+        aid = existing.get(lab["name"])
+        if not aid:
+            print(f"  ✗ not found in course: {lab['name']} (skipped)")
+            continue
+        put(f"/assignments/{aid}",
+            {"assignment": {"description": resolve_links(lab["html"])}},
+            f"updated {lab['name']}")
+
+    # Pre-labs: create or update
+    print("\n── Pre-lab assignments ──")
+    group_ids = {g["name"]: g["id"] for g in get_all("/assignment_groups")}
+    module_ids = {m["name"]: m["id"] for m in get_all("/modules")}
+    lab_gid = group_ids.get("Labs")
+
+    for pl in PRELABS:
+        payload = {
+            "name":                pl["name"],
+            "description":         resolve_links(pl["html"]),
+            "due_at":              pl["due_at"],
+            "unlock_at":           pl["unlock_at"],
+            "points_possible":     0,
+            "assignment_group_id": lab_gid,
+            "submission_types":    ["online_text_entry", "online_upload"],
+            "allowed_attempts":    -1,
+            "published":           False,
+        }
+        aid = existing.get(pl["name"])
+        if aid:
+            put(f"/assignments/{aid}", {"assignment": payload}, f"updated {pl['name']}")
+        else:
+            r = post("/assignments", {"assignment": payload}, f"created {pl['name']}")
+            if r:
+                mid = module_ids.get(pl["module"])
+                if mid:
+                    post(f"/modules/{mid}/items", {"module_item": {
+                        "title": pl["name"], "type": "Assignment", "content_id": r["id"]}})
+
+    print("\n✓ Sync complete. Nothing was duplicated; new items are DRAFTS.")
+    print(f"  Review: {BASE_URL}/courses/{COURSE_ID}/assignments")
+
+
 def main():
     print(f"CS 401R Canvas Builder")
     print(f"Target: {BASE_URL}/courses/{COURSE_ID}\n")
@@ -880,7 +1214,9 @@ def main():
     group_ids  = build_assignment_groups()
     module_ids = build_modules()
 
+    build_prelab_files()
     build_labs(module_ids, group_ids)
+    build_prelabs(module_ids, group_ids)
     build_final_project(module_ids, group_ids)
     build_participation(module_ids, group_ids)
     build_quizzes(module_ids, group_ids)
@@ -897,4 +1233,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # `--sync` updates an existing course in place. Bare invocation builds the
+    # whole course from scratch and WILL duplicate if the course is not empty.
+    if "--sync" in sys.argv:
+        sync_prelabs_and_labs()
+        sys.exit(0)
     main()
