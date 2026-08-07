@@ -171,7 +171,7 @@ You are not starting from a blank page. These are real, from the reference imple
 
 Reproduced from the table above: hosting 0.5889 / 0.4328 / 0.0192 hr, processing 0.0958 / 0.2283 hr, Glue 1.0311 ETL + 0.4786 crawler DPU-hr, Feature Store 7,967 write RU, S3 764 PUT / 3,260 GET, NAT 4 hr, CodeBuild 10 build-min.
 
-> **These are July 2026 *cumulative* usage figures from Cost Explorer, measured on the retired 1,200-customer dataset.** Two cautions. First, they are a month's total across every run, **not the cost of one pass** — scaling them as though they were per-run is a real error, and this course's own answer key made it until 2026-08-03. Second, the dataset is now 8x larger: a single measured ETL pass is roughly **380–500 DPU-seconds** across the two Glue jobs.
+> **These are July 2026 *cumulative* usage figures from Cost Explorer, measured on the retired 1,200-customer dataset.** Two cautions. First, they are a month's total across every run, **not the cost of one pass** — scaling them as though they were per-run is a real error, and this course's own cost model made it until 2026-08-03. Second, the dataset is now 8x larger: a single measured ETL pass is roughly **380–500 DPU-seconds** across the two Glue jobs.
 >
 > **That range is the point, not a hedge.** Four measured single-pass runs on byte-identical data gave **430, 400, 380 and 502** total DPU-seconds — a **32% spread** with no change to the input, the code, or the configuration. Glue bills on DPU-hours it decides you consumed, and that number moves run to run.
 >
