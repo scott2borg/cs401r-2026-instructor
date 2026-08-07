@@ -130,10 +130,12 @@ Lifecycle rules *(new in Lab 2)*:
 - Trust: `sagemaker.amazonaws.com`
 - Allowed:
   - CloudWatch: `PutMetricData`, `GetMetricStatistics`, `PutMetricAlarm`, `DescribeAlarms`
-  - SageMaker Model Monitor: create/manage/delete monitoring schedules
+  - SageMaker: `ListProcessingJobs`, `DescribeProcessingJob` — **read-only visibility into drift runs**
   - S3: read-only on `artifacts/` prefix
   - CloudWatch Logs: write
-- Denied by omission: cannot invoke endpoints; cannot write to S3; cannot modify models
+- Denied by omission: cannot invoke endpoints; cannot write to S3; cannot modify models; **cannot start a processing job** — that is `ModelMonitorExecution`'s job, not this one
+
+> **This role observes; it does not act.** The distinction matters in Lab 6, where the drift analysis runs under `northstar-dev-ModelMonitorExecution` (which writes reports and pulls containers) while this role only watches. A drift alarm that cannot itself remediate is a design choice, not an oversight.
 
 ---
 

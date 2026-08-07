@@ -36,7 +36,7 @@ There is no teardown script for this lab because there is nothing to tear down. 
 
 Before you start, understand the single most important fact in this lab.
 
-The reference account ran **all of Labs 1 through 6** during July 2026 — Feature Store ingestion, Glue ETL and crawlers, three SageMaker endpoints across three instance families, Model Monitor processing jobs, CodeBuild, a NAT gateway, KMS, CloudWatch alarms and custom metrics. Cost Explorer reports the following for that month:
+The reference account ran **all of Labs 1 through 6** during July 2026 — Feature Store ingestion, Glue ETL and crawlers, three SageMaker endpoints across three instance families, model-monitoring processing jobs, CodeBuild, a NAT gateway, KMS, CloudWatch alarms and custom metrics. Cost Explorer reports the following for that month:
 
 | Service | Measured usage | Billed |
 |---|---|---|
@@ -177,7 +177,9 @@ Reproduced from the table above: hosting 0.5889 / 0.4328 / 0.0192 hr, processing
 >
 > So: **do not report a single measured DPU figure as though it were a constant, and do not treat a number outside someone else's measurement as an error.** If your pass lands at 380 or at 500, both are normal. If your cost model's conclusion changes materially between those two ends, the model is too sensitive to a noisy input and you should say so — that observation is worth more marks than a precise-looking point estimate. Use *your own* measured usage, state the range you observed, and say which quantity you are scaling.
 
-Two of these are worth noticing before you use them. The `ml.t3.large` figure of 0.0958 hr is **5 min 45 s** — one successful Model Monitor analyzer run. The `ml.t3.medium` figure of 0.2283 hr is **13 min 42 s** — one analyzer run that ran out of memory and failed. **Failed jobs bill.** A cost model built only from successful runs understates the truth, and in early-stage ML the failures are frequently the larger number. Yours will be.
+Two of these are worth noticing before you use them. The `ml.t3.large` figure of 0.0958 hr is **5 min 45 s** — one successful monitoring analyzer run. The `ml.t3.medium` figure of 0.2283 hr is **13 min 42 s** — one analyzer run that ran out of memory and failed. **Failed jobs bill.** A cost model built only from successful runs understates the truth, and in early-stage ML the failures are frequently the larger number. Yours will be.
+
+> **These two figures are from SageMaker Model Monitor, which Lab 6 no longer uses** — its Spark analyzer needed `ml.t3.large` and OOM'd on `ml.t3.medium`. Lab 6 now runs Evidently, which completes the same comparison in **1 min 59 s on `ml.t3.medium`** for about **$0.0017**. The July figures are left here deliberately, because the comparison is the lesson: **a tool substitution changed this line item by roughly 9x while changing nothing about the business question being answered.** When you build your cost model in Task 2, that is the kind of lever worth looking for — far more of your bill is architecture choice than volume.
 
 ## Deliverable
 

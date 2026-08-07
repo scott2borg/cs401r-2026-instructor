@@ -222,7 +222,7 @@ Create all four prefixes now. They will be used starting in Lab 2.
   - ECR: read (pull training container images)
 - Denied by omission: cannot write to `raw/` or `processed/`
 
-> **Note:** `northstar-dev-DataEngineer` and `northstar-dev-ModelMonitor` roles are added in Lab 2, when the services those roles govern (Glue, Lambda, CloudWatch Model Monitor) are introduced.
+> **Note:** `northstar-dev-DataEngineer` and `northstar-dev-ModelMonitor` roles are added in Lab 2, when the services those roles govern (Glue, Lambda, CloudWatch) are introduced.
 
 ---
 
@@ -789,10 +789,12 @@ Lifecycle rules *(new in Lab 2)*:
 - Trust: `sagemaker.amazonaws.com`
 - Allowed:
   - CloudWatch: `PutMetricData`, `GetMetricStatistics`, `PutMetricAlarm`, `DescribeAlarms`
-  - SageMaker Model Monitor: create/manage/delete monitoring schedules
+  - SageMaker: `ListProcessingJobs`, `DescribeProcessingJob` — **read-only visibility into drift runs**
   - S3: read-only on `artifacts/` prefix
   - CloudWatch Logs: write
-- Denied by omission: cannot invoke endpoints; cannot write to S3; cannot modify models
+- Denied by omission: cannot invoke endpoints; cannot write to S3; cannot modify models; **cannot start a processing job** — that is `ModelMonitorExecution`'s job, not this one
+
+> **This role observes; it does not act.** The distinction matters in Lab 6, where the drift analysis runs under `northstar-dev-ModelMonitorExecution` (which writes reports and pulls containers) while this role only watches. A drift alarm that cannot itself remediate is a design choice, not an oversight.
 
 ---
 
@@ -2226,37 +2228,56 @@ A deployed model with no monitoring is a liability. This lab instruments the Nor
 
 Lab 5 taught you that a SageMaker endpoint bills from `InService` until deletion. Lab 6 re-creates that endpoint *and* adds a second billing source:
 
-| Resource | Rate | Notes |
-|---|---|---|
-| Endpoint — `ml.t2.medium` | **$0.056 / hr** | Where Lab 5 starts you |
-| Endpoint — `ml.m5.large` | **$0.115 / hr** | Only if your Lab 5 quota increase came through |
-| Model Monitor processing job | **$0.10 / hr** | `ml.t3.large`, billed per second, only while a job runs |
-| CloudWatch alarm | $0.10 / alarm-month | Prorated hourly; 6 alerts ≈ $0.60/mo if left |
-| CloudWatch custom metric | $0.30 / metric-month | **Not prorated** — you pay for the month |
-| CloudWatch dashboard | free (first 3) | Then $3/mo |
+| Resource                    | Rate                 | Notes                                                    |
+| --------------------------- | -------------------- | -------------------------------------------------------- |
+| Endpoint — `ml.t2.medium`   | **$0.056 / hr**      | Where Lab 5 starts you                                   |
+| Endpoint — `ml.m5.large`    | **$0.115 / hr**      | Only if your Lab 5 quota increase came through           |
+| Evidently processing job    | **$0.05 / hr**       | `ml.t3.medium`, billed per second, only while a job runs |
+| CloudWatch alarm            | $0.10 / alarm-month  | Prorated hourly; 6 alerts ≈ $0.60/mo if left             |
+| CloudWatch custom metric    | $0.30 / metric-month | **Not prorated** — you pay for the month                 |
+| CloudWatch dashboard        | free (first 3)       | Then $3/mo                                               |
 
-A monitoring job costs more per hour than a `t2.medium` endpoint, but it only runs for minutes, so in practice it adds roughly 25% to your bill. **Measured 2026-08-03 at 10,000 customers: a baseline job on `ml.t3.large` took 9 min 44 s of billed instance time and cost $0.016; an analysis run took 8 min 44 s and cost $0.015.**
+The drift job is the cheapest thing in this lab. **Measured 2026-08-07 on `ml.t3.medium`: 10,000 baseline rows against 800 captured records ran in 1 min 59 s of billed instance time and cost about $0.0017.** Round it to a fifth of a cent per run. Run it ten times while you get the inputs right and you have spent two cents.
+
+Your bill in this lab is essentially the endpoint, and only the endpoint.
 
 What this actually costs you — the column that applies depends on which instance Lab 5 left you on:
 
 | If you… | On `ml.t2.medium` | On `ml.m5.large` |
 |---|---|---|
-| Work in one focused session and tear down (3 h) | **$0.53** | **$0.70** |
-| Leave it running overnight (14 h) | **$1.30** | **$2.13** |
-| Forget for three days (72 h) | **$5.40** | **$9.64** |
-| Forget for a week (168 h) | **$12.17** | **$22.08** |
+| Work in one focused session and tear down (3 h) | **$0.49** | **$0.67** |
+| Leave it running overnight (14 h) | **$1.13** | **$1.95** |
+| Forget for three days (72 h) | **$4.47** | **$8.72** |
+| Forget for a week (168 h) | **$10.01** | **$19.93** |
 
-Burn rate with the endpoint live and one analysis run per hour: **$0.0706/hr** on `t2.medium`, **$0.1296/hr** on `m5.large`.
+Burn rate with the endpoint live and one drift run per hour: **$0.0577/hr** on `t2.medium`, **$0.1167/hr** on `m5.large`.
 
-> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 137 hours (5.7 days) on `t2.medium`, or 75 hours (3.1 days) on `m5.large`.** You have a 16-day submission window, so either number is reachable by simply forgetting. Do the lab in one sitting and tear it down.
+> **A single forgotten Lab 6 endpoint breaches the entire course account's $10/month budget alarm in 168 hours (7 days) on `t2.medium`, or 83 hours (3.5 days) on `m5.large`.** You have a 16-day submission window, so either number is reachable by simply forgetting. Do the lab in one sitting and tear it down.
 
-**The part that is new and catches people:** each analyzer run is a *separate* billable instance on top of the endpoint. The endpoint bills continuously; every analysis you launch adds ~9 minutes of `ml.t3.large` on top. Two or three runs is normal while you get the inputs right.
+**Read that table for what it is actually telling you.** Every meaningful number in it is the endpoint. The monitoring — the entire subject of this lab — rounds to nothing. That is the normal shape of production ML economics: *serving* is the recurring cost, and *observability* is close to free by comparison. The instinct to skip monitoring to save money is backwards, and this bill is the proof.
 
-If you automate the analysis on a timer (EventBridge, a cron job, a loop), **that timer keeps launching billable jobs whether or not you are still working, and whether or not the endpoint still exists.** `scripts/teardown-lab5.sh` knows nothing about monitoring. **Use `scripts/teardown-lab6.sh`** — it stops in-flight processing jobs and removes any schedule before deleting the endpoint.
+If you automate the analysis on a timer (EventBridge, a cron job, a loop), **that timer keeps launching billable jobs whether or not you are still working, and whether or not the endpoint still exists.** `scripts/teardown-lab5.sh` knows nothing about monitoring. **Use `scripts/teardown-lab6.sh`** — it stops in-flight processing jobs before deleting the endpoint.
+
+## Why this lab uses Evidently and not SageMaker Model Monitor
+
+SageMaker Model Monitor is the obvious tool for this lab, and you cannot use it. **Monitoring schedules are closed to new AWS accounts:**
+
+```
+ValidationException: This operation is in maintenance mode and is not
+available to new customers. Existing customers are unaffected.
+```
+
+Both `CreateMonitoringSchedule` and `CreateDataQualityJobDefinition` return this. It is not a quota, not a permission, and not something you did wrong — AWS closed the API to accounts that were not already using it. **Every account in this course is new.** No permission fixes it and there is nothing to request.
+
+So this lab uses **[Evidently](https://github.com/evidentlyai/evidently)**, an open-source Python library for drift detection, running inside a SageMaker Processing Job. You keep the managed compute; you drop the managed control plane that was closed to you.
+
+> **Do not confuse this with Amazon CloudWatch Evidently.** That was an unrelated AWS service for feature flags and A/B experiments, it never did model monitoring, and AWS ended support for it on **16 October 2025**. If you find AWS documentation for "Evidently", it is almost certainly about the dead feature-flag service. The library you want is `pip install evidently` and its docs are at `docs.evidentlyai.com`.
+
+This substitution is worth more than it costs. A managed schedule is a checkbox that hides the analysis behind it. Running Evidently yourself means you must decide *what test to run on which feature at what threshold* — which is exactly what Task 2 asks you to justify, and exactly the judgement the checkbox was making silently on your behalf.
+
+There is also a practical dividend: Model Monitor's analyzer is a Spark container that needs 8 GB. Evidently is pandas. It runs comfortably on the cheapest instance you have quota for.
 
 ## Prerequisites — do this before Task 1
-
-Three things must be true before you run the analyzer. Two of them fail *expensively* and *silently* — a misconfigured run burns 6-14 minutes of instance time before telling you anything useful, and the endpoint bills the whole while.
 
 Run the pre-flight check:
 
@@ -2264,9 +2285,7 @@ Run the pre-flight check:
 bash scripts/preflight-lab6.sh
 ```
 
-### 0. Use `ml.t3.large` for every Model Monitor job — not `ml.m5.large`, not `ml.t3.medium`
-
-This is not a cost-tuning suggestion. It is the only instance type that both has quota and actually works.
+### 0. Use `ml.t3.medium` — and understand why you have no other choice
 
 **Your AWS account's processing-job quota is 0 for every non-burstable instance type.** Not low — zero. `ml.m5.large`, `ml.c5.*`, `ml.m4.*`, `ml.r5.*` and every other general-purpose family will reject the job immediately:
 
@@ -2277,31 +2296,24 @@ ResourceLimitExceeded: The account-level service limit
 
 Of the 126 processing instance types, exactly **three** have a non-zero AWS default, and all three are burstable: `ml.t3.medium` (4), `ml.t3.large` (4), `ml.t3.xlarge` (2). Verified against `get-aws-default-service-quota` on 2026-07-31.
 
-Check your own before you start — these are the *defaults*, and an account accrues higher applied limits as it is used:
+Check your own before you start:
 
 ```bash
 aws service-quotas get-service-quota --service-code sagemaker \
-  --quota-code L-C076FA77 --query 'Quota.Value' --output text   # ml.t3.large processing
+  --quota-code L-0CE343FE --query 'Quota.Value' --output text   # ml.t3.medium processing
 ```
 
-**And `ml.t3.medium` — the cheapest — does not work.** The Model Monitor analyzer is a Spark container and exhausts its 4 GB on a dataset of barely a thousand rows. Worse, it takes **13 min 43 s** to fail, and the error blames your data rather than the instance:
+**`ml.t3.medium` (4 GB) is enough.** Verified 2026-08-07: a 10,000-row baseline against 800 captured records completed in **1 min 59 s** of billed time. You do not need `ml.t3.large` and you must not file a quota increase for this lab.
 
-```
-ClientError: Please use an instance type with more memory,
-or reduce the size of job data processed on an instance.
-```
-
-That message will send you off shrinking your dataset, which is not the problem. **`ml.t3.large` (8 GB) is the floor.** Measured: baseline job completed in 9 min 44 s of billed instance time at 10,000 customers.
-
-> **Note the inversion from Lab 5.** Lab 5's trap was that *burstable instances cannot be auto-scaling targets* — you were forced off `ml.t3.*` onto `ml.m5.large`. In Lab 6, the constraint runs exactly the other way: burstable is the only class with any default processing quota at all. Same instance family, opposite conclusion, one lab apart.
+> **This is where the tool choice pays for itself.** The same comparison under Model Monitor's Spark analyzer **fails** on `ml.t3.medium` — it exhausts 4 GB, takes **13 min 43 s** to do it, and then blames your data instead of the instance: *"Please use an instance type with more memory, or reduce the size of job data processed on an instance."* That message sends you off shrinking a dataset that was never the problem. Evidently on the same instance and the same data finishes in under two minutes.
 >
-> **Endpoint quota, training quota, and processing quota are three completely separate numbers**, and having one tells you nothing about the others. `ml.m5.large` has a *different* quota for each. The AWS default for all three on-demand families is 0; accounts accumulate higher applied limits through usage, which is why an endpoint that deployed fine in Lab 5 does not mean a processing job will run in Lab 6. Always check the specific quota for the specific job type.
-
-If you want `ml.m5.large` for processing, you must file a Service Quotas increase (`L-8541302D`) and wait on an AWS Support case. **Do not put that on the critical path for this lab** — the lab is designed to complete on `ml.t3.large` with no quota request.
+> **Note the inversion from Lab 5.** Lab 5's trap was that *burstable instances cannot be auto-scaling targets* — you were forced off `ml.t3.*` onto `ml.m5.large`. In Lab 6 the constraint runs exactly the other way: burstable is the only class with any default processing quota at all. Same instance family, opposite conclusion, one lab apart.
+>
+> **Endpoint quota, training quota, and processing quota are three completely separate numbers**, and having one tells you nothing about the others. `ml.m5.large` has a *different* quota for each. The AWS default for all three on-demand families is 0. An endpoint that deployed fine in Lab 5 tells you nothing about whether a processing job will run in Lab 6.
 
 ### 1. Your endpoint must have data capture enabled
 
-Model Monitor analyzes inference data that the endpoint captured to S3. **No capture means nothing to analyze**, and the failure is not obvious: the job is accepted, runs, and produces an empty or schema-confused report rather than saying "there was no input".
+Evidently analyzes inference data that the endpoint captured to S3. **No capture means nothing to analyze.** The launcher checks the capture prefix before it starts a billable job and refuses to launch against an empty one — but understand what it is protecting you from.
 
 **Endpoint configs are immutable.** Capture cannot be switched on for a running endpoint. If your endpoint was deployed without it, you must create a new endpoint config and call `update-endpoint` (~3 min 47 s, zero downtime):
 
@@ -2316,12 +2328,12 @@ Capture lands under `s3://<bucket>/datacapture/<endpoint>/<variant>/<yyyy>/<mm>/
 
 The platform has two similarly named roles, and they are **not interchangeable**:
 
-| Role | What it is | Use for |
+| Role | What it is | Use for                                       |
 |---|---|---|
 | `northstar-dev-ModelMonitor` | **Observer** identity. Read-only by design: no S3 write, no ECR pull. | Humans and automation that watch the platform |
-| `northstar-dev-ModelMonitorExecution` | **Service execution** identity. Writes reports, pulls the analyzer container. | **Model Monitor schedules — this lab** |
+| `northstar-dev-ModelMonitorExecution` | **Service execution** identity. Writes reports, pulls the container. | **The Evidently processing job — this lab**   |
 
-A monitoring execution is a batch job whose entire purpose is to *write* its findings (`statistics.json`, `constraint_violations.json`) and it cannot start without pulling its container from ECR. Hand it the observer role and the job fails several minutes in as an opaque `ProcessingJobStatus: Failed`.
+The drift job is a batch job whose entire purpose is to *write* its findings (`drift_report.json`, `drift_violations.json`) and it cannot start without pulling its container from ECR. Hand it the observer role and the job fails several minutes in as an opaque `ProcessingJobStatus: Failed`.
 
 This distinction — an identity that observes versus an identity that executes — is the design point, not a technicality. Note it in your Task 3 deliverable.
 
@@ -2331,77 +2343,104 @@ This distinction — an identity that observes versus an identity that executes 
 
 Implement monitoring across all five layers for the NorthStar churn model. All layers must surface in a single **CloudWatch Dashboard** named `NorthStar-AI-Platform`.
 
-| Layer | What to Monitor | Tool | Threshold |
-|-------|----------------|------|-----------|
-| **Infrastructure** | SageMaker endpoint CPU, memory | CloudWatch Metrics | CPU > 80% → alert |
-| **Pipeline** | Glue job success/failure rate | CloudWatch Events | Any failure → P2 alert |
-| **Model** | Data drift (PSI on top 3 features) | Model Monitor analyzer, run as a processing job | PSI > 0.2 → alert (metric published by you) |
-| **Application** | Inference latency p50, p95, p99 | CloudWatch Metrics | p95 > 200 ms → alert (`ModelLatency` threshold `200000` — see note) |
-| **Business** | Daily churn alert volume (proxy) | CloudWatch Custom Metric | Volume drop >30% vs. 7-day avg → alert |
+| Layer | What to Monitor | Tool                                           | Threshold |
+| ------------------ | ---------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------- |
+| **Infrastructure** | SageMaker endpoint CPU, memory | CloudWatch Metrics                             | CPU > 80% → alert |
+| **Pipeline** | Glue job success/failure rate | CloudWatch Events                              | Any failure → P2 alert |
+| **Model** | Data drift (PSI on top 3 features) | Evidently, run as a processing job             | PSI > 0.2 → alert (metric published by you) |
+| **Application** | Inference latency p50, p95, p99 | CloudWatch Metrics                             | p95 > 200 ms → alert (`ModelLatency` threshold `200000` — see note) |
+| **Business** | Daily churn alert volume (proxy) | CloudWatch Custom Metric                       | Volume drop >30% vs. 7-day avg → alert |
 
 > **`ModelLatency` is emitted in MICROSECONDS.** Every latency threshold in this lab is written in milliseconds because that is how humans and SLAs talk, but CloudWatch does not. 200 ms is `200000`; 500 ms is `500000`. Writing `200` builds an alarm that trips at 0.2 ms — well below a healthy endpoint's normal latency, measured at roughly **4,100 µs (4.1 ms)** on `ml.m5.large` in Lab 5. That alarm sits in `ALARM` permanently and any automation wired to it fires against a healthy system. Verified on AWS 2026-07-30. Check the `Unit` field in `get-metric-statistics` output before setting any threshold.
 >
 > Related: the **first invocation after a deploy runs ~6x slower** (~24,000 µs measured) as the container warms. An alarm with `EvaluationPeriods: 1` will trip on your own deployment.
-
-> ### ⚠️ SageMaker Model Monitor **schedules** cannot be created on a new AWS account
 >
-> Both `CreateMonitoringSchedule` and `CreateDataQualityJobDefinition` now return:
->
-> ```
-> ValidationException: This operation is in maintenance mode and is not
-> available to new customers. Existing customers are unaffected.
-> ```
->
-> This is **not** a quota, a permission, or a mistake in your configuration. AWS has closed the API to accounts that were not already using it, and every account in this course is new. Verified on AWS 2026-07-31. Do not spend time trying to work around it — you cannot.
->
-> **What still works is everything that matters.** `CreateProcessingJob` is unaffected and the `model-monitor-analyzer` container runs normally. You will run the analyzer yourself as a processing job instead of having SageMaker run it for you on a schedule. You lose the managed cron; you keep the entire analysis.
->
-> This is a better exercise than the one it replaces. A managed schedule is a checkbox. Invoking the analyzer directly means you have to understand what it actually consumes — captured data, a baseline, a dataset format — and what it emits.
-
 **Requirements:**
-- A **baseline** generated from your training feature set with `suggest_baseline`, on **`ml.t3.large`**, using the `ModelMonitorExecution` role. Commit `statistics.json` and `constraints.json`.
-- A **monitoring analysis run** — the analyzer executed as a processing job against your captured inference data, producing `constraint_violations.json`. Commit it.
+- A **baseline** exported from your Lab 2 training feature set — a CSV of the **11 features the endpoint receives** — uploaded to `s3://<bucket>/monitoring/baseline/`.
+- A **drift analysis run** — Evidently executed as a processing job against your captured inference data, producing `drift_report.json` and `drift_violations.json`. Commit both.
 - At least one custom CloudWatch metric pushed programmatically (business layer)
 - Dashboard JSON exported and committed to `monitoring/dashboards/northstar-dashboard.json`
 
-**Running the analyzer manually.** Submit a processing job with image `156813124566.dkr.ecr.us-east-1.amazonaws.com/sagemaker-model-monitor-analyzer` and these environment variables:
+**Running the drift analysis.** The launcher uploads the analysis script, checks that captured data actually exists, and submits the processing job:
 
-```
-dataset_source              /opt/ml/processing/input/endpoint
-dataset_format              {"sagemakerCaptureJson":{"captureIndexNames":["endpointInput"]}}
-output_path                 /opt/ml/processing/output
-baseline_constraints        /opt/ml/processing/baseline/constraints/constraints.json
-baseline_statistics         /opt/ml/processing/baseline/stats/statistics.json
-analysis_type               DATA_QUALITY
-publish_cloudwatch_metrics  Disabled
+```bash
+python monitoring/run_evidently_job.py \
+  --bucket northstar-dev-data-<account> \
+  --role-arn arn:aws:iam::<account>:role/northstar-dev-ModelMonitorExecution \
+  --endpoint northstar-churn-prod \
+  --variant champion
 ```
 
-> **`publish_cloudwatch_metrics` must be `Disabled`.** Setting it to `Enabled` fails the job after roughly eight minutes with `AlgorithmError: CloudWatch publishing is available only for jobs from MonitoringSchedules.` — and since you cannot create a schedule, you cannot enable it. **This is why the model layer of your dashboard is your own job:** parse `constraint_violations.json` and publish your own metric with `put-metric-data`. That is the same work the managed schedule was doing for you.
+The job runs the stock SageMaker scikit-learn container and `pip install`s Evidently at start-up. Two details in that command are load-bearing:
 
-Mount three inputs: your capture prefix to `/opt/ml/processing/input/endpoint`, `constraints.json` to `/opt/ml/processing/baseline/constraints`, and `statistics.json` to `/opt/ml/processing/baseline/stats`.
+```
+683313688378.dkr.ecr.us-east-1.amazonaws.com/sagemaker-scikit-learn:1.4-2-py312-cpu-py3
+pip install evidently==0.7.21
+```
 
-**Capture is partitioned per variant** — `datacapture/<endpoint>/<variant>/<yyyy>/<mm>/<dd>/<hh>/`. If you ran a two-variant canary in Lab 5, point the analyzer at one variant's prefix, and say in your write-up which one and why.
-
-Reference numbers, re-verified 2026-08-03 on the 10,000-customer dataset: a baseline over **9,999** customers profiled 11 features (`days_since_last_purchase` mean **42.69**, std 59.22, `completeness` 1.0, `inferred_type` `Fractional`), taking **8 m 44 s** on `ml.t3.large`. Your numbers will differ; the *shape* of the output should not.
-
-> **Two things will make your analysis job fail in ways the error message does not explain.**
+> **The `py312` tag is required.** Evidently needs **Python ≥ 3.10**. The older `sklearn 1.2-1` processing image ships an earlier Python and the install fails. If you copy an image URI from an older tutorial, this is what breaks.
 >
-> **1. Your baseline needs the same column count as your capture.** `sagemakerCaptureJson` reads `endpointInput` **and** `endpointOutput`, so an 11-feature model produces **12** captured columns — the features plus the prediction. Baseline on the 11 features alone and you get `extra_column_check: current dataset 12, baseline constraints 11`, which looks like a data problem and is a baseline-construction problem. Profile features **plus** your model's scores.
+> **Pin the version.** Evidently's API broke at 0.7 — `column_mapping` was replaced by `DataDefinition`, and you can no longer hand a Report a bare DataFrame; it must be wrapped in a `Dataset`. Most tutorials online predate this and fail with an `ImportError`. An unpinned install also means your lab breaks the day upstream ships 0.8.
 >
-> **2. Do not invoke with batched rows if you intend to monitor the traffic.** Send more than one CSV row per request and the whole payload is captured as one string; the analyzer parses it as a single column and fails with `missing_column_check: current dataset 1, baseline constraints 12`. Verified both ways against the same baseline — 60 single-row records parsed correctly, 211 batched records did not. Nothing in the error mentions batching. Score one row per request.
+> **You do not need a NAT gateway for the `pip install`.** A processing job launched without a VPC config has egress through SageMaker's managed network. Verified 2026-08-07.
+
+**Expect alarming-looking pip output that is not an error.** Installing Evidently upgrades `protobuf` and `urllib3` past the versions the sklearn container pins, and pip says so loudly:
+
+```
+ERROR: pip's dependency resolver does not currently take into account all the
+packages that are installed. This behaviour is the source of the following
+dependency conflicts.
+sagemaker-sklearn-container 2.0 requires protobuf==3.20.2, but you have protobuf 7.35.1
+```
+
+**The job succeeds anyway** — nothing in the drift analysis uses those packages. Verified. But note the consequence: `botocore` inside that container is now on an unsupported `urllib3`, so **do not try to call `put-metric-data` from inside the job.** Publish your metric from the launcher after the job returns, which is what `publish_metrics.py` does.
+
+**Capture is partitioned per variant** — `datacapture/<endpoint>/<variant>/<yyyy>/<mm>/<dd>/<hh>/`. If you ran a two-variant canary in Lab 5, point the job at one variant's prefix, and say in your write-up which one and why.
+
+Reference run, verified 2026-08-07 on `ml.t3.medium`: 10,000 baseline rows against 800 captured records, **1 min 59 s** billed. Output:
+
+```
+feature                      test         value   thresh  drift
+days_since_last_purchase     psi         0.0227      0.2    no
+purchase_frequency_30d       psi         6.8354      0.2   YES
+avg_order_value              psi         1.3880      0.2   YES
+category_diversity_score     ks          0.8945     0.05    no
+total_spend_90d              ks          0.7629     0.05    no
+```
+
+Your numbers will differ; the *shape* of the output should not.
+
+> **The one thing most likely to make your results silently wrong.**
 >
-> **3. Use at least ~500 predictions in the comparison window.** 60 captured records against a 9,999-record baseline produced **8 drift violations** at distances of 0.215–0.762 against a 0.1 threshold — on data drawn from the same distribution as the baseline. Too small a window manufactures drift that is not there.
+> **Evidently returns a different kind of number depending on the test.** PSI returns a **distance statistic** — it *rises* with drift, so drift means `value > threshold`. KS returns a **p-value** — it *falls* with drift, so drift means `value < threshold`. Measured on synthetic data as the mean shift increases:
+>
+> | mean shift | `ks` (p-value) | `psi` (statistic) |
+> |---|---|---|
+> | 0 | 0.272552 | 0.0235 |
+> | 2 | 0.000000 | 0.0472 |
+> | 5 | 0.000000 | 0.2757 |
+> | 15 | 0.000000 | 2.3176 |
+>
+> They move in **opposite directions.** If you loop over mixed tests with one `if value > threshold`, KS is inverted and reports **no drift on maximally drifted data**, because `0.0` is not greater than `0.05`. Nothing errors. Your report looks clean. This is the single most dangerous defect available in this lab, and it is a reasoning error, not an infrastructure one — no amount of AWS debugging will find it.
+>
+> **Two more that will cost you a run:**
+>
+> **1. Baseline the 11 features the *endpoint* receives** — not the full training frame. `churn_label` is the target and `churn_risk_score` is the Lab 3 recency baseline; neither is a model input. A baseline over 12 or 13 columns produces schema noise that never names its real cause.
+>
+> **2. Do not invoke with batched rows if you intend to monitor the traffic.** Send more than one CSV row per request and the whole payload is captured as a single string, so 200 batched predictions become one row in your comparison window. Score one row per request.
+>
+> **3. Use at least ~500 predictions in the comparison window.** A small window manufactures drift that is not there. The analysis script warns you when the window is under 500 rather than letting you believe a false positive.
 
 **Rubric:**
 
-| Item | Points | Pass Criteria |
+| Item                                         | Points | Pass Criteria |
 |------|--------|---------------|
 | All 5 layers visible in CloudWatch Dashboard | 15 | TA can open the dashboard and see at least one metric per layer |
-| Model Monitor baseline **and** analysis run | 10 | `statistics.json` + `constraints.json` from a baseline job, **and** a `constraint_violations.json` from an analyzer processing job over captured data. A schedule is NOT required and cannot be created — see the note above. |
-| Custom metric pushed for business layer | 5 | `aws cloudwatch get-metric-statistics` returns data for the custom metric |
-| Dashboard JSON committed | 5 | `monitoring/dashboards/northstar-dashboard.json` is valid CloudWatch Dashboard JSON |
+| Evidently baseline **and** drift analysis run | 10 | A committed baseline CSV over the 11 endpoint features, **and** `drift_report.json` + `drift_violations.json` from an Evidently processing job over captured data. A Model Monitor schedule is NOT required and cannot be created — see the note above. |
+| Custom metric pushed for business layer      | 5 | `aws cloudwatch get-metric-statistics` returns data for the custom metric |
+| Dashboard JSON committed                     | 5 | `monitoring/dashboards/northstar-dashboard.json` is valid CloudWatch Dashboard JSON |
 
-> **Grading standard carried forward from Lab 5:** prefer *observed* evidence over configuration screenshots. A baseline statistics file with real numbers in it beats a console capture of a schedule that has never executed.
+> **Grading standard carried forward from Lab 5:** prefer *observed* evidence over configuration screenshots. A `drift_violations.json` with real numbers in it beats a console screenshot of a job that has never executed.
 
 ### Task 2 — Drift Detection Plan (15 points)
 
@@ -2515,42 +2554,37 @@ Write complete runbooks for **two** failure scenarios in `docs/lab6-runbook.md`.
 
 These cost previous runs of this course real time and real money. They are not hypothetical.
 
-1. **Model Monitor SCHEDULES cannot be created on a new AWS account.** `CreateMonitoringSchedule` and `CreateDataQualityJobDefinition` are both in maintenance mode and closed to new customers. No quota or permission fixes it. Run the analyzer as a processing job instead — the container is unaffected. Verified 2026-07-31.
-2. **`publish_cloudwatch_metrics` must be `Disabled`** on a manually-run analyzer. `Enabled` fails after ~8 minutes with *"CloudWatch publishing is available only for jobs from MonitoringSchedules"*, and you cannot create a schedule.
-3. **Processing-job quota defaults to 0 for every non-burstable instance.** Not low — zero. Only `ml.t3.{medium,large,xlarge}` have a non-zero default. Endpoint, training and processing quotas are three separate numbers per instance type; one being fine says nothing about the others. Use `ml.t3.large`. Verified 2026-07-31.
-4. **`ml.t3.medium` cannot run Model Monitor.** The analyzer is a Spark container and OOMs on ~1,400 rows after **13 min 43 s**, with an error that blames your data volume rather than the instance memory. `ml.t3.large` is the floor.
-5. **`ModelLatency` is in microseconds.** 200 ms is `200000`. Every latency threshold in this lab depends on this. Verified both directions on AWS: `200000` stayed `OK`, `1000` alarmed in under a minute.
-6. **Cold start is ~6x steady-state latency** (~24,000 µs vs ~4,150 µs). An alarm with `EvaluationPeriods: 1` trips on your own deployment.
-7. **No data capture means no monitoring.** Model Monitor fails silently and late. Run `scripts/preflight-lab6.sh` first.
-8. **`ModelMonitor` ≠ `ModelMonitorExecution`.** The observer role cannot run a monitoring job. Fails ~1 hour in, as an opaque `Failed`.
-9. **Endpoint configs are immutable.** Data capture cannot be added to a running endpoint; you must roll a new config.
-10. **Endpoints bill hourly until deleted.** Rolling back to weight 0 does not stop the charge.
-11. **Monitoring schedules outlive endpoints** and keep launching billable jobs. Delete the schedule explicitly.
-12. **Burstable instances cannot be auto-scaling targets** (carried from Lab 5).
-13. **IAM propagation lag ~30 s** — re-running immediately shows the *old* error and looks like your fix failed.
-14. **Non-ASCII in AWS-facing `description` fields** — some services reject em dashes, others accept them, so failures look arbitrary.
-15. **Console Resource Explorer lags hours.** Verify against the live API.
-16. **Auto-scaling does NOT orphan scalable targets** on endpoint deletion. Verified. Do not "fix" this non-problem.
+1. **PSI and KS move in opposite directions.** PSI is a statistic (drift when `>` threshold); Evidently reports KS as a p-value (drift when `<` threshold). One comparison operator cannot serve both, and getting it wrong reports *no drift on maximally drifted data* without erroring. Verified 2026-08-07.
+2. **Processing-job quota defaults to 0 for every non-burstable instance.** Not low — zero. Only `ml.t3.{medium,large,xlarge}` have a non-zero default. Endpoint, training and processing quotas are three separate numbers per instance type; one being fine says nothing about the others. `ml.t3.medium` is sufficient for Evidently. Verified 2026-07-31.
+3. **`ModelLatency` is in microseconds.** 200 ms is `200000`. Every latency threshold in this lab depends on this. Verified both directions on AWS: `200000` stayed `OK`, `1000` alarmed in under a minute.
+4. **Cold start is ~6x steady-state latency** (~24,000 µs vs ~4,150 µs). An alarm with `EvaluationPeriods: 1` trips on your own deployment.
+5. **Endpoint configs are immutable.** Data capture cannot be added to a running endpoint; you must roll a new config.
+6. **Endpoints bill hourly until deleted.** Rolling back to weight 0 does not stop the charge.
+7. **Any timer you build outlives your endpoint.** SageMaker monitoring schedules are closed to you, but an EventBridge rule or cron loop you write yourself has exactly the same failure mode: it keeps launching billable processing jobs after the endpoint is gone. If you automate the drift run, delete the trigger explicitly.
+8. **Burstable instances cannot be auto-scaling targets** (carried from Lab 5).
+9. **IAM propagation lag ~30 s** — re-running immediately shows the *old* error and looks like your fix failed.
+10. **Non-ASCII in AWS-facing `description` fields** — some services reject em dashes, others accept them, so failures look arbitrary.
+11. **Console Resource Explorer lags hours.** Verify against the live API.
+12. **Auto-scaling does NOT orphan scalable targets** on endpoint deletion. Verified. Do not "fix" this non-problem.
 
 ## Teardown (required — read before you submit)
 
-**Teardown is a gate, not a rubric line.** An endpoint or monitoring schedule still running after the deadline is a **10-point deduction**, applied on top of the gate.
+**Teardown is a gate, not a rubric line.** An endpoint or drift-automation trigger still running after the deadline is a **10-point deduction**, applied on top of the gate.
 
 ```bash
 bash scripts/teardown-lab6.sh
 ```
 
-Order matters. Delete the **monitoring schedule first**, then the endpoint. A schedule left behind keeps launching processing jobs that bill on their own instances, and it will happily do so long after the endpoint it was pointed at is gone.
+Order matters. Stop **any timer or in-flight processing job first**, then delete the endpoint. Anything on a schedule keeps launching processing jobs that bill on their own instances, and it will happily do so long after the endpoint it was pointed at is gone.
 
 Teardown must remove, at minimum:
-- Monitoring schedule(s)
+- Any EventBridge rule or cron trigger you built to automate the drift run
+- In-flight processing jobs
 - The endpoint, endpoint config, and both SageMaker Models
 - CloudWatch alarms created for Task 1 and Task 3
 - Any scaling target left from Lab 5
 
 Then confirm with an independent all-region sweep, as in Labs 2–5. Custom CloudWatch metrics cannot be deleted — they expire after 15 months of no data. That is expected; the $0.30 metric-month charge is already accounted for.
-
----
 
 # Lab 7: Metrics + Economics & Business Value
 
@@ -2590,7 +2624,7 @@ There is no teardown script for this lab because there is nothing to tear down. 
 
 Before you start, understand the single most important fact in this lab.
 
-The reference account ran **all of Labs 1 through 6** during July 2026 — Feature Store ingestion, Glue ETL and crawlers, three SageMaker endpoints across three instance families, Model Monitor processing jobs, CodeBuild, a NAT gateway, KMS, CloudWatch alarms and custom metrics. Cost Explorer reports the following for that month:
+The reference account ran **all of Labs 1 through 6** during July 2026 — Feature Store ingestion, Glue ETL and crawlers, three SageMaker endpoints across three instance families, model-monitoring processing jobs, CodeBuild, a NAT gateway, KMS, CloudWatch alarms and custom metrics. Cost Explorer reports the following for that month:
 
 | Service | Measured usage | Billed |
 |---|---|---|
@@ -2731,7 +2765,9 @@ Reproduced from the table above: hosting 0.5889 / 0.4328 / 0.0192 hr, processing
 >
 > So: **do not report a single measured DPU figure as though it were a constant, and do not treat a number outside someone else's measurement as an error.** If your pass lands at 380 or at 500, both are normal. If your cost model's conclusion changes materially between those two ends, the model is too sensitive to a noisy input and you should say so — that observation is worth more marks than a precise-looking point estimate. Use *your own* measured usage, state the range you observed, and say which quantity you are scaling.
 
-Two of these are worth noticing before you use them. The `ml.t3.large` figure of 0.0958 hr is **5 min 45 s** — one successful Model Monitor analyzer run. The `ml.t3.medium` figure of 0.2283 hr is **13 min 42 s** — one analyzer run that ran out of memory and failed. **Failed jobs bill.** A cost model built only from successful runs understates the truth, and in early-stage ML the failures are frequently the larger number. Yours will be.
+Two of these are worth noticing before you use them. The `ml.t3.large` figure of 0.0958 hr is **5 min 45 s** — one successful monitoring analyzer run. The `ml.t3.medium` figure of 0.2283 hr is **13 min 42 s** — one analyzer run that ran out of memory and failed. **Failed jobs bill.** A cost model built only from successful runs understates the truth, and in early-stage ML the failures are frequently the larger number. Yours will be.
+
+> **These two figures are from SageMaker Model Monitor, which Lab 6 no longer uses** — its Spark analyzer needed `ml.t3.large` and OOM'd on `ml.t3.medium`. Lab 6 now runs Evidently, which completes the same comparison in **1 min 59 s on `ml.t3.medium`** for about **$0.0017**. The July figures are left here deliberately, because the comparison is the lesson: **a tool substitution changed this line item by roughly 9x while changing nothing about the business question being answered.** When you build your cost model in Task 2, that is the kind of lever worth looking for — far more of your bill is architecture choice than volume.
 
 ## Deliverable
 

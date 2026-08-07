@@ -1,4 +1,5 @@
 ---
+created: 2026-07-06
 tags:
   - cs401r
   - sample-solution
@@ -7,46 +8,49 @@ tags:
   - slos
   - cloudwatch
   - drift-detection
+  - evidently
   - runbooks
 lab_number: 6
-status: rewritten against a verified AWS run
-created: 2026-07-06
-rewritten: 2026-07-31
-verified_on: 2026-07-31
+status: rewritten for the Evidently path against a verified AWS run
+rewritten: 2026-08-07
+verified_on: 2026-08-07
 account: "711457211658"
 ---
 
 # Lab 6 — Monitoring & Reliability (Solution Notes)
 
-**Rewritten 2026-07-31 against a real AWS run.** The previous version was written against a retired architecture and predates the single most important fact about this lab: SageMaker Model Monitor *schedules* can no longer be created on a new AWS account. If you are holding a copy that tells students to create a monitoring schedule, discard it.
+**Rewritten 2026-08-07. The model-monitoring tool changed.** This lab no longer uses SageMaker Model Monitor. Model Monitor *schedules* cannot be created on a new AWS account, and every student account is new. The lab now uses **Evidently**, the open-source Python drift library, run inside a SageMaker Processing Job.
+
+If you are holding a copy that tells students to create a monitoring schedule, or to run the `model-monitor-analyzer` container, discard it.
+
+> **Terminology — you will be asked about this.** "Evidently" here means the open-source library at `docs.evidentlyai.com`, installed with `pip install evidently`. It is **not** Amazon CloudWatch Evidently, which was an unrelated AWS feature-flag and A/B-testing service that never did model monitoring and which **AWS shut down on 16 October 2025**. A student who finds AWS docs for "Evidently" has found the wrong thing. Expect this confusion at least once per section and correct it early.
 
 ---
 
 ## Reference Run
 
-Executed against account `711457211658`, `us-east-1`, on **2026-07-31**.
+Endpoint, dashboard and latency figures executed against account `711457211658`, `us-east-1`, on **2026-07-31**. **Drift analysis re-verified on the Evidently path 2026-08-07.**
 
 | What | Result |
 |---|---|
 | Endpoint | `ml.t2.medium`, two variants (champion/canary), data capture on |
 | create-endpoint → InService | **7 min 03 s** |
 | Observed traffic split at 9:1 | **174 champion / 26 canary** over 200 invocations |
-| Baseline job (`ml.t3.large`) | **8 min 44 s**, 11 features over 9,999 customers (2026-08-03, 10k dataset) |
-| Analyzer run over captured data | **174 records analysed**, `"violations": []` |
+| **Evidently drift job (`ml.t3.medium`)** | **1 min 59 s billed**, 10,000 baseline rows vs 800 captured |
+| **Drift job cost** | **~$0.0017 per run** |
 | Dashboard | 15 widgets, 5 layers, **zero** validation messages |
 | Custom metrics | `ChurnAlertVolume`, `DriftDetected`, `DriftViolationCount` |
-| Total cost | **~$0.12** |
 | Teardown | All 8 regions clean, verified independently |
 
 `ModelLatency` re-confirmed as **microseconds**: champion averaged **3,793 µs** and **4,489 µs** across two hourly buckets. Cold start measured at **27,696 µs vs 4,628 µs** steady state — a **6.0x ratio**, independently reproducing the Lab 5 finding on a different instance type.
 
-Reference implementation: `monitoring/publish_metrics.py`, `monitoring/build_dashboard.py`, `monitoring/dashboards/northstar-dashboard.json`, `scripts/preflight-lab6.sh`, `scripts/teardown-lab6.sh`.
+Reference implementation: `monitoring/evidently_drift.py`, `monitoring/run_evidently_job.py`, `monitoring/publish_metrics.py`, `monitoring/build_dashboard.py`, `monitoring/dashboards/northstar-dashboard.json`, `scripts/preflight-lab6.sh`, `scripts/teardown-lab6.sh`.
 
 ---
 
 ## Six findings that will hit students before anything else
 
-### 1. Model Monitor SCHEDULES are closed to new AWS accounts — this changes the lab
+### 1. Model Monitor SCHEDULES are closed to new AWS accounts — this is why the tool changed
 
 ```
 ValidationException: This operation is in maintenance mode and is not
@@ -57,39 +61,57 @@ Returned by **both** `CreateMonitoringSchedule` and `CreateDataQualityJobDefinit
 
 This is not a quota, not a permission, and not something the student did wrong. AWS closed the API to accounts that were not already using it. **Every student account is new, so no student can create a monitoring schedule.**
 
-**What still works:** `CreateProcessingJob`, and the `model-monitor-analyzer` container itself. The lab now has students run the analyzer directly as a processing job. Verified end to end: it consumed captured data, compared it against the baseline, and wrote `constraints.json`, `statistics.json` and `constraint_violations.json`.
+The lab routes around this entirely: Evidently has no managed control plane to be locked out of. `CreateProcessingJob` is unaffected and is all the lab needs.
 
-**Grading:** a student who reports "I could not create a monitoring schedule" and shows this error has found the truth, not failed the task. Award full credit for that portion if they then ran the analyzer manually. **Do not** tell them to "try again with the right permissions" — no permission fixes it.
+**Grading:** a student who went looking for Model Monitor, hit this error, and documented it has learned the actual lesson — that a documented AWS capability can be closed to you with no recourse. Give credit for the finding. **Do not** tell them to "try again with the right permissions"; no permission fixes it.
 
-If a student somehow *does* have a working schedule, they are on an older AWS account. Accept it; it is the same analysis by a different trigger.
+If a student on an older account gets a Model Monitor schedule working and produces equivalent drift analysis, accept it. It is the same analysis by a different trigger. Do not require them to redo it in Evidently.
 
-### 2. `publish_cloudwatch_metrics` must be `Disabled`
+### 2. PSI and KS move in OPPOSITE directions — the highest-value defect in the lab
 
-A manually-run analyzer with `publish_cloudwatch_metrics=Enabled` fails after roughly **eight minutes**:
+This replaces the old `publish_cloudwatch_metrics` finding and it is far more interesting.
 
-```
-AlgorithmError: CloudWatch publishing is available only for jobs from
-MonitoringSchedules., exit code: 255
-```
+Evidently returns a different *kind* of number depending on the test:
 
-Since schedules cannot be created, publishing can never be enabled. **This is why the model layer of the dashboard is the student's own work** — they must parse `constraint_violations.json` and call `put-metric-data` themselves. That is the exact work the managed schedule used to do.
+- **PSI** returns a distance **statistic**. It **rises** with drift. Drift means `value > threshold`.
+- **KS** returns a **p-value**. It **falls** with drift. Drift means `value < threshold`.
 
-Expect students to lose eight minutes and about a cent here. It is a cheap lesson and worth letting them find.
+Measured 2026-08-07 as mean shift increases (n_ref=2000, n_cur=800):
 
-### 3. `ml.t3.medium` cannot run the analyzer, and lies about why
+| mean shift | `ks` (p-value) | `psi` (statistic) |
+|---|---|---|
+| 0 | 0.272552 | 0.0235 |
+| 2 | 0.000000 | 0.0472 |
+| 5 | 0.000000 | 0.2757 |
+| 15 | 0.000000 | 2.3176 |
 
-The analyzer is a Spark container. On `ml.t3.medium` (4 GB) it exhausts memory on a 1,377-row CSV and fails after **13 min 43 s** with:
+**A student who loops over mixed tests with a single `if value > threshold` inverts KS and reports no drift on maximally drifted data** — `0.0` is not greater than `0.05`. Nothing errors. The report looks clean and the job exits 0.
 
-```
-ClientError: Please use an instance type with more memory, or reduce the
-size of job data processed on an instance.
-```
+**This is the thing to look for when grading Task 1.** It is a reasoning error, not an infrastructure error, so no amount of AWS debugging surfaces it. Check the comparison logic directly. A student who wrote a `drift_direction()`-style function that branches on the test type has understood something real about statistical tests, not just about AWS — say so. A student whose KS features *never* show drift across every run is displaying the symptom.
 
-The message blames the **data**, not the instance. A student who believes it will go and shrink their dataset, which cannot work. **`ml.t3.large` (8 GB) is the floor.**
+Note also the row at shift=2: **KS screams (p=0.000) while PSI is quiet (0.047, under a 0.2 threshold).** That disagreement is not a bug. KS is sensitive to sample size and detects any distributional difference; PSI measures magnitude and ignores commercially trivial shifts. A student who notices the two tests disagree and can explain why has earned a comment in Task 2.
 
-Compounding this: processing-job quota defaults to **0** for every non-burstable instance type. Of 126 processing instance types, exactly three have a non-zero AWS default, and all three are burstable — `ml.t3.medium` (4), `ml.t3.large` (4), `ml.t3.xlarge` (2). So the cheapest instance with quota is also the one that does not work.
+### 3. `ml.t3.medium` is now sufficient — the old memory trap is gone
+
+**Verified 2026-08-07: Evidently completed a 10,000-row baseline against 800 captured records in 1 min 59 s of billed time on `ml.t3.medium` (4 GB).**
+
+This is a deliberate improvement over the retired path. Model Monitor's analyzer is a **Spark** container; on the same `ml.t3.medium` it exhausted 4 GB, took **13 min 43 s** to fail, and blamed the data rather than the instance (*"use an instance type with more memory, or reduce the size of job data"*). That message sent students off shrinking datasets that were never the problem. Evidently is pandas, and the trap no longer exists.
+
+Practical consequences for grading:
+
+- **`ml.t3.large` is no longer required.** A student using it is not wrong, just paying double for nothing. Worth a note, not a deduction.
+- **No student should be filing a quota increase for this lab.** If one did, something upstream misled them — find out what.
+- Processing-job quota still defaults to **0** for every non-burstable instance type. Of 126 processing instance types, exactly three have a non-zero AWS default, and all three are burstable: `ml.t3.medium` (4), `ml.t3.large` (4), `ml.t3.xlarge` (2).
 
 Note the inversion from Lab 5, and expect sharp students to spot it: Lab 5 forces you *off* burstable (no auto-scaling); Lab 6 forces you *onto* it (only class with default quota).
+
+### 3b. Two container facts that will break a student's job
+
+**The `py312` image tag is load-bearing.** Evidently requires **Python ≥ 3.10**. The image the lab specifies is `sagemaker-scikit-learn:1.4-2-py312-cpu-py3`. A student who copies an older `1.2-1` URI from a tutorial gets an install failure that reads like a network problem.
+
+**The pip dependency warnings are noise, not failure.** Installing Evidently upgrades `protobuf` and `urllib3` past the sklearn container's pins, and pip prints a red `ERROR:` block saying so. **The job succeeds anyway** — verified. Expect students to report this as a failure. It is not.
+
+The real consequence is subtler and worth teaching: `botocore` inside that container is now on an unsupported `urllib3`, so **AWS SDK calls from inside the job are unreliable.** Students must publish CloudWatch metrics from the launcher after the job returns, not from inside it. A student who tried to `put_metric_data` in-container and hit strange TLS errors has found a real dependency-hell lesson.
 
 ### 4. Data capture fails silently without an endpoint-role S3 write
 
@@ -159,30 +181,45 @@ Confirmed sources, all returning data in the reference run:
 
 **Look for the microsecond conversion.** A strong submission uses metric math (`m1/1000`) so the latency axis reads in milliseconds and the SLO annotation lines up. A student plotting raw microseconds against a "200 ms" annotation has a chart off by 1000x and will misread their own SLO. Note it favourably; not worth points on its own.
 
-### Model Monitor baseline and analysis run (10 pts)
+### Evidently baseline and drift analysis run (10 pts)
 
-**A schedule is not required and cannot be created.** See finding 1.
+**A Model Monitor schedule is not required and cannot be created.** See finding 1.
 
 Required evidence:
-1. `statistics.json` + `constraints.json` from a baseline job
-2. `constraint_violations.json` from an analyzer processing job over captured data
+1. A **baseline CSV** over the **11 features the endpoint receives**, in `monitoring/baseline/`
+2. `drift_report.json` **and** `drift_violations.json` from an Evidently processing job over captured data
 
 ```bash
 aws s3 ls s3://northstar-dev-data-<account>/monitoring/baseline/
 aws s3 ls s3://northstar-dev-data-<account>/monitoring/reports/
 ```
 
-Reference baseline: 11 features over **9,999** customers, `days_since_last_purchase` mean **42.69** (std 59.22), `completeness` 1.0, `inferred_type` `Fractional`. Baseline job 8 m 44 s, analysis job 8 m 44 s on `ml.t3.large`; 1,060 predictions produced 271 captured records.
+Reference run, verified 2026-08-07 on `ml.t3.medium`, 10,000 baseline rows vs 800 captured records, 1 min 59 s billed:
 
-**Two failure modes to expect in submissions, both verified 2026-08-03.** A baseline built from 11 feature columns fails `extra_column_check` against 12 captured columns — capture includes the prediction. And any student who invoked with batched rows gets `missing_column_check: current dataset 1` regardless of baseline, because a multi-row payload is captured as one string. Neither error names its real cause; treat both as setup issues, not analysis failures. Separately, a comparison window under ~500 records will show drift violations on clean data — 60 records produced 8.
+```
+feature                      test         value   thresh  drift
+days_since_last_purchase     psi         0.0227      0.2    no
+purchase_frequency_30d       psi         6.8354      0.2   YES
+avg_order_value              psi         1.3880      0.2   YES
+category_diversity_score     ks          0.8945     0.05    no
+total_spend_90d              ks          0.7629     0.05    no
+```
 
-**Zero violations is a PASS.** If a student replays similar inputs, the observed distribution matches the baseline and there is nothing to report. An empty violations list proves the comparison ran. Students who fabricate drift to "get a result" should be marked down for the fabrication, not rewarded for the output.
+That run injected a deliberate "holiday promotion" shift — more frequent purchases at lower order value — and Evidently flagged **exactly** the two features that were shifted and nothing else. **This is the shape of a correct submission.** Drift on every feature, or drift on none across every run, both suggest a defect rather than a finding.
 
-**Watch the feature count.** The baseline must describe the features the *endpoint receives*, not the full training frame. A baseline over 12 columns against an 11-feature endpoint produces schema-mismatch noise. If their violations report is full of unexpected-column errors, this is why.
+**Grade the comparison logic, not just the artifact.** Per finding 2, open their code and check how they decide `drifted`. If they use one operator for both PSI and KS, their KS results are inverted and meaningless even though the JSON looks fine. This is the highest-value check in Task 1.
 
-**Capture is partitioned per variant** — `datacapture/<endpoint>/<variant>/<yyyy>/<mm>/<dd>/<hh>/`. A canary student must point the analyzer at one variant and say which. Either choice is defensible; an unstated choice is not.
+**Zero violations is a PASS.** If a student replays inputs drawn from the same distribution as the baseline, there is nothing to report and an empty violations list proves the comparison ran. Students who fabricate drift to "get a result" should be marked down for the fabrication, not rewarded for the output.
 
-**Award 10/10** for both artifacts with real content. **5/10** for a baseline only. **0** for neither.
+**Watch the feature count.** The baseline must describe the 11 features the *endpoint receives* — not the full training frame. `churn_label` is the target and `churn_risk_score` is the Lab 3 recency baseline; neither is a model input. A baseline over 12 or 13 columns produces schema noise.
+
+**Small windows manufacture drift.** Under ~500 captured records, clean data will show violations. `evidently_drift.py` sets `underpowered_window: true` in the summary when this happens. If a student reports dramatic drift, check that flag before believing it.
+
+**Capture is partitioned per variant** — `datacapture/<endpoint>/<variant>/<yyyy>/<mm>/<dd>/<hh>/`. A canary student must point the job at one variant and say which. Either choice is defensible; an unstated choice is not.
+
+**Batched invocation ruins the window.** A multi-row payload is captured as one string, so 200 batched predictions become one comparison row. A student reporting a suspiciously tiny `captured_records` against many invocations did this.
+
+**Award 10/10** for both artifacts with real content and correct per-test comparison logic. **7/10** if the artifacts are right but KS is inverted. **5/10** for a baseline only. **0** for neither.
 
 ### Custom metric pushed programmatically (5 pts)
 
@@ -268,13 +305,13 @@ The recency-only baseline from Lab 3 is the obvious degradation target and almos
 
 ## Teardown — gate, not points
 
-Same standing as Lab 5. An endpoint or monitoring schedule alive after the deadline is a **10-point deduction on top of the gate**.
+Same standing as Lab 5. An endpoint or drift-automation trigger alive after the deadline is a **10-point deduction on top of the gate**.
 
 ```bash
 bash scripts/teardown-lab6.sh
 ```
 
-**Order matters and the script enforces it:** schedules and in-flight processing jobs first, then the endpoint. Anything on a timer keeps launching billable jobs after the endpoint is gone.
+**Order matters and the script enforces it:** student-built triggers and in-flight processing jobs first, then the endpoint. Anything on a timer keeps launching billable jobs after the endpoint is gone. SageMaker schedules are unavailable, but a student's own EventBridge rule has the identical failure mode.
 
 Verify against `docs/lab6-teardown-output.txt` and an independent sweep. Do **not** accept console screenshots — the console's resource views lag by hours and have shown deleted resources as present in this course before.
 
@@ -287,7 +324,7 @@ Captured data under `datacapture/` is **retained by design** (7-day lifecycle) a
 | Task | Item | Pts |
 |---|---|---|
 | 1 | All 5 layers in the dashboard | 15 |
-| 1 | Model Monitor baseline **and** analysis run | 10 |
+| 1 | Evidently baseline **and** drift analysis run | 10 |
 | 1 | Custom metric pushed programmatically | 5 |
 | 1 | Dashboard JSON committed and valid | 5 |
 | 2 | Drift analysis references NorthStar specifics | 5 |
@@ -309,7 +346,7 @@ Captured data under `datacapture/` is **retained by design** (7-day lifecycle) a
 
 ## Connections to prior labs
 
-- **Lab 2** created the IAM roles. Lab 6 needs `ModelMonitorExecution` — the *execution* identity, not the read-only `ModelMonitor` observer. That distinction is a teaching point, not a technicality.
+- **Lab 2** created the IAM roles. Lab 6 needs `ModelMonitorExecution` — the *execution* identity, not the read-only `ModelMonitor` observer. That distinction is a teaching point, not a technicality. Lab 2's feature set is also the **source of the Evidently baseline**; students export the 11 endpoint features to CSV rather than generating a baseline with a managed job.
 - **Lab 3** produced the model and the recency-only baseline that makes the best degradation answer possible.
 - **Lab 4** built the CI/CD gate. The SLO error budget is what should freeze that pipeline.
 - **Lab 5** deployed the endpoint and enabled data capture. **Without capture there is no Lab 6** — endpoint configs are immutable, so a student who deployed without it must redeploy.

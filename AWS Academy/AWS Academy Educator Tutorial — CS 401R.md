@@ -190,15 +190,15 @@ This is powerful for office hours. Instead of asking students to share screensho
 
 ### Estimated Costs by Lab
 
-| Lab | Primary AWS Services | Estimated Cost (disciplined student) | Risk Factor |
+| Lab | Primary AWS Services                             | Estimated Cost (disciplined student) | Risk Factor |
 |-----|---------------------|--------------------------------------|-------------|
-| Lab 1 | VPC, S3, IAM, SageMaker Domain | $1–3 | Low — mostly storage |
-| Lab 2 | Glue ETL, S3, SageMaker Feature Store | $3–6 | Medium — Glue jobs bill per DPU-hour |
-| Lab 3 | SageMaker Training (XGBoost), Bedrock | $5–10 | High — training jobs on ml.m5.xlarge |
+| Lab 1 | VPC, S3, IAM, SageMaker Domain                   | $1–3 | Low — mostly storage |
+| Lab 2 | Glue ETL, S3, SageMaker Feature Store            | $3–6 | Medium — Glue jobs bill per DPU-hour |
+| Lab 3 | SageMaker Training (XGBoost), Bedrock            | $5–10 | High — training jobs on ml.m5.xlarge |
 | Lab 4 | CodePipeline, SageMaker Training, Model Registry | $4–8 | High — CI/CD triggers repeat training runs |
-| Lab 5 | SageMaker Endpoint (real-time) | $5–12 | **Very High** — endpoints left running burn $0.05+/hr |
-| Lab 6 | CloudWatch, SageMaker Model Monitor | $2–5 | Medium |
-| Lab 7 | S3, CloudWatch, compute for analysis | $1–3 | Low |
+| Lab 5 | SageMaker Endpoint (real-time)                   | $5–12 | **Very High** — endpoints left running burn $0.05+/hr |
+| Lab 6 | SageMaker Endpoint, CloudWatch, Evidently drift job | $2–5 | Medium — the endpoint is the cost; the drift job is ~$0.002/run |
+| Lab 7 | S3, CloudWatch, compute for analysis             | $1–3 | Low |
 
 **Conservative total estimate: $21–47.** A disciplined student can stay within $50. A student who leaves a SageMaker real-time endpoint running for a week will exceed it well before Lab 7.
 

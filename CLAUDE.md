@@ -43,9 +43,25 @@ available to new customers. Existing customers are unaffected.
 
 Not a quota. Not a permission. The API is closed to accounts that were not already using it, and **every student account is new**. No workaround exists at the API level.
 
-**What still works:** `CreateProcessingJob`, and the `model-monitor-analyzer` container itself. Verified — the analyzer runs as a plain processing job against captured data and emits `constraints.json`, `statistics.json`, `constraint_violations.json`. Lab 6 Task 1 is built on that path now.
+**Lab 6 no longer uses Model Monitor at all (changed 2026-08-07).** It runs **Evidently**, the open-source Python drift library, inside a plain SageMaker Processing Job. There is no managed control plane to be locked out of.
 
-**Constraint on that path:** `publish_cloudwatch_metrics` must be `Disabled`; `Enabled` fails with *"CloudWatch publishing is available only for jobs from MonitoringSchedules"*. Students publish their own metric from the violations JSON.
+> **"Evidently" here always means the OSS library** (`pip install evidently`, `docs.evidentlyai.com`). It is **not** Amazon CloudWatch Evidently — an unrelated feature-flag/A-B service that never did model monitoring and which AWS shut down on **16 Oct 2025**. Do not reintroduce that confusion; it was already in these notes once and had to be cleaned out.
+
+**Verified on the Evidently path 2026-08-07** (account `711457211658`, two processing jobs, ~$0.005):
+
+| | Model Monitor (retired) | Evidently (current) |
+|---|---|---|
+| Instance floor | `ml.t3.large` (Spark, 8 GB) | **`ml.t3.medium` (pandas, 4 GB)** |
+| On `ml.t3.medium` | OOM after 13 m 43 s | **1 m 59 s success** |
+| Cost per run | $0.010 | **~$0.0017** |
+
+**Three constraints on the Evidently path, all measured:**
+
+- **The `py312` container tag is load-bearing.** Evidently needs Python ≥ 3.10; use `sagemaker-scikit-learn:1.4-2-py312-cpu-py3`. The older `1.2-1` image fails.
+- **Pin the version** (`evidently==0.7.21`). The API broke at 0.7 — `column_mapping` → `DataDefinition`, and a bare DataFrame must now be wrapped in a `Dataset`.
+- **PSI and KS invert.** PSI returns a statistic (drift when `>` threshold); KS returns a **p-value** (drift when `<` threshold). One comparison operator cannot serve both, and getting it wrong reports no drift on maximally drifted data, silently. This is the highest-value defect to look for in student work.
+
+Installing Evidently upgrades `protobuf`/`urllib3` past the container's pins and pip prints a red `ERROR:` block. **The job still succeeds** — but `botocore` in that container is then unreliable, so publish CloudWatch metrics from the launcher, never from inside the job.
 
 **Implication beyond Lab 6:** treat any AWS API this course depends on as possibly closed to new accounts, regardless of what documentation says. Verify on the reference account only after remembering it is *not* new — it has usage history the students' accounts will not have.
 
@@ -82,7 +98,7 @@ Not a quota. Not a permission. The API is closed to accounts that were not alrea
 
 ## Authority rules
 
-- The live repo `/Users/scott1/northstar-ai-platform` is authoritative; `Sample Solutions/` is a copy kept in sync.
+- The live repo `/Users/scott1/northstar-ai-platform` is authoritative **and is the only copy**. The old tree at `CS_401R_Labs/Sample Solutions/northstar-ai-platform/` is **retired and gitignored — do not sync to it, do not recreate it.** See `docs/GitHub Integration.md`. To browse the reference implementation, open the real repo.
 - **Standalone `Lab_N--*.md` is authoritative over the master `CS 401R Labs.md`**, which is synced to match and verified byte-identical.
 
 ## Canvas

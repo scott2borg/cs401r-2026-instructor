@@ -334,7 +334,7 @@ northstar-ai-platform/
 - **Storage:** S3 (data lake), SageMaker Feature Store, DynamoDB (agent state)
 - **Pipeline:** Glue (ETL), SageMaker Pipelines, CodePipeline (CI/CD)
 - **Models:** SageMaker (custom models), Bedrock (foundation models, RAG, agents)
-- **Monitoring:** CloudWatch (metrics, logs, alarms), SageMaker Model Monitor (drift)
+- **Monitoring:** CloudWatch (metrics, logs, alarms), Evidently (open-source drift detection, run in SageMaker Processing)
 - **Security:** IAM, Secrets Manager, KMS, VPC, GuardDuty
 - **IaC:** Terraform (all infrastructure defined as code)
 
