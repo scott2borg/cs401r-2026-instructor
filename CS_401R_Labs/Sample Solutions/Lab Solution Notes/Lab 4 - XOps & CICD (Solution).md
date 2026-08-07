@@ -171,8 +171,12 @@ Also confirm the gate fails when `baseline_auc_roc` is **absent**, not just when
 |---|---|---|
 | Champion-challenger criterion numeric and binary | 5 | "New model replaces champion if AUC ≥ champion + 0.01 **and** no tier slice regresses more than 0.05" is full credit. "If it performs better" is 0. |
 | Both retraining triggers defined and automatable | 8 | Needs a scheduled trigger *and* a performance trigger, each naming the AWS service that fires it (EventBridge rule, CloudWatch alarm). "We would retrain monthly" without a mechanism earns 3. |
-| Experiment tracking ≥3 runs | 4 | Three *identical* runs earn 2 — hyperparameter variation is the point. |
+| Experiment tracking ≥3 runs | 4 | **MLflow App** runs, not SageMaker Experiments. Three *identical* runs earn 2 — hyperparameter variation is the point. Pipeline-auto-generated Experiments do not count; see below. |
 | Model lineage metadata in Registry | 3 | `describe_model_package()` must show training data URI and commit SHA. The Lab 3 reference attaches `auc_roc`, `baseline_auc_roc`, `auc_lift`, `feature_count`. |
+
+> **A SageMaker Pipeline auto-creates an Experiment and one Trial per execution.** The reference account carries `northstar-churn-pipeline` with **11 trials** and `SourceType: SageMakerPipeline` — nobody requested them. So students will see Experiments in the console even though the course now tracks with MLflow, and some will submit those as their evidence.
+>
+> **They do not count.** Auto-generated trials record *that a pipeline ran*, not *what the student varied and what it did to the metrics*. Deduct 2 and explain the difference — the distinction between free lineage and deliberate measurement is the actual lesson in this rubric item.
 
 **A good champion-challenger criterion should reference the Platinum finding from Lab 3** — aggregate AUC improving while a high-value slice regresses is exactly the case a naive criterion misses. Students who caught that deserve explicit credit.
 
@@ -235,7 +239,7 @@ aws sagemaker list-model-packages --model-package-group-name <group> \
 | 2 — Promotion only on green gates | 8 | Yes | **The no-lift case** |
 | 3 — Champion-challenger criterion | 5 | No | Must be a number |
 | 3 — Retraining triggers | 8 | No | Must name the firing service |
-| 3 — Experiments ≥3 runs | 4 | Yes | |
+| 3 — MLflow App ≥3 runs | 4 | Yes | |
 | 3 — Lineage metadata | 3 | Yes | |
 | 4 — Maturity evidence | 10 | No | Specificity over level claimed |
 | 4 — Gap analysis | 6 | No | |
@@ -258,7 +262,8 @@ aws sagemaker list-model-packages --model-package-group-name <group> \
 | Hardcoded champion AUC instead of registry lookup | -5 |
 | Champion-challenger criterion not numeric | -5 |
 | Retraining triggers with no firing mechanism | -5 |
-| Three identical Experiments runs | -2 |
+| Three identical MLflow runs | -2 |
+| Submitting pipeline-auto-generated Experiments as tracking evidence | -2 |
 | Maturity assessment with no repo evidence | cap at 4/10 |
 | `terraform.tfstate` or `.tfvars` in git | -5 + security flag |
 | AWS key (`AKIA*`) in git history | -5 + security flag; notify Scott |

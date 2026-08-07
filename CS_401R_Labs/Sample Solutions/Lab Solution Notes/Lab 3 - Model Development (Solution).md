@@ -110,9 +110,28 @@ Both AUCs must be reported, the lift computed, **and a 95% CI on the lift shown*
 
 **This is the gate that matters.** A model that cannot beat "days since last purchase" has not earned deployment, and Lab 4's CI pipeline enforces the same threshold. Award 0 if the baseline was never trained, even if the full model's AUC is excellent — the comparison is the deliverable, not the number.
 
-### SageMaker Experiments (5 pts)
+### MLflow App experiment tracking (5 pts)
 
-≥3 runs visible as trials with logged metrics. Hyperparameter variation is the point; three identical runs earn 2 of 5.
+**The tool changed 2026-08-07.** This item was "SageMaker Experiments"; it is now a **SageMaker MLflow App**. SageMaker Experiments' Python SDK tracking is Studio-Classic-only and AWS now points everyone at MLflow.
+
+≥3 runs with logged params **and** metrics, retrievable via `mlflow.search_runs`. Hyperparameter variation is the point; three identical runs earn 2 of 5.
+
+Verified 2026-08-07 on account `711457211658`: `create-mlflow-app` succeeded from a plain IAM user with **no SageMaker Studio domain**, reached `Created` in **4 min 52 s**, served **MLflow 3.10.1**, and returned three logged runs through `search_runs` with params and metrics intact.
+
+> ## ⚠ Watch for the wrong MLflow — this is the expensive mistake in the course
+>
+> | | **MLflow App** ✅ | MLflow **Tracking Server** ❌ |
+> |---|---|---|
+> | API | `CreateMlflowApp` | `CreateMlflowTrackingServer` |
+> | Cost | free | **$0.60/hr** until deleted |
+>
+> **A tracking server breaches the entire $10 course budget in 16.7 hours and costs ~$43 over a weekend** — more per hour than any endpoint in this course. It is not an endpoint, so a student checking "did I delete my endpoints?" will not find it. Most tutorials describe the tracking server because it shipped first.
+>
+> `teardown-lab3.sh` and `preflight-lab6.sh` now both check for it. **If a student's teardown evidence shows one, that is a real charge on a real card — tell them immediately rather than noting it in feedback.** Stopping is not deleting.
+
+**Two failure modes to expect.** A student on a stock AWS CLI gets `Invalid choice: 'create-mlflow-app'` — the API postdates many installed versions, and the error reads like a typo rather than a version problem. And a student who installs `mlflow` without `sagemaker-mlflow` gets a connection error that never mentions credentials; the second package is the SigV4 auth plugin for `arn:aws:sagemaker:...` tracking URIs.
+
+**Accept a Tracking Server if they used one and deleted it.** The tracking is equivalent; only the billing model differs. Note the cost lesson and move on — do not make them redo the work.
 
 ### Model Registry, `PendingManualApproval` (5 pts)
 
@@ -179,7 +198,7 @@ Award credit for honesty. A student whose lift was small and who says so, with a
 
 The teardown gate caps Task 4 at half credit until evidence is produced. **Endpoints are the cost risk in Lab 3** — hourly billing until explicitly deleted, trivially created from a notebook and forgotten.
 
-`scripts/teardown-lab3.sh` deletes endpoints and endpoint configs, stops in-flight jobs, then verifies. Model Registry entries and Experiments are metadata only, cost nothing, and are deliberately retained.
+`scripts/teardown-lab3.sh` deletes endpoints and endpoint configs, stops in-flight jobs, then verifies. Model Registry entries cost nothing and are deliberately retained, as is the **MLflow App** — it is serverless and free, and Labs 4 and 6 log to it. The script does check for an MLflow **Tracking Server**, which bills \$0.60/hr.
 
 **Run `aws sagemaker list-endpoints` yourself** when grading. If a student has one running past the deadline, tell them immediately regardless of grading status — it bills against credits they need for Labs 4–7.
 
@@ -252,7 +271,8 @@ cat docs/lab3-model-design.md      # AUC, baseline, lift, precision, recall, sli
 # 3. AWS state (only if their stack is still up)
 aws sagemaker list-model-packages --model-package-group-name <their-group> \
   --query 'ModelPackageSummaryList[*].[ModelPackageVersion,ModelApprovalStatus]'
-aws sagemaker list-experiments --query 'ExperimentSummaries[*].ExperimentName'
+aws sagemaker list-mlflow-apps --query 'MlflowAppSummaries[*].[Name,Status]'
+aws sagemaker list-mlflow-tracking-servers   # MUST be empty - $0.60/hr if not
 aws sagemaker list-endpoints    # must be empty at submission
 
 # 4. Track B/C artifacts
@@ -270,7 +290,7 @@ ls docs/ notebooks/    # RAGAS scores, or the five agent traces
 | 1 — Athena offline store | 5 | Partial | Read the data-loading code |
 | 1 — Meets P@10%/R@10% thresholds | 8 | Yes | Reference 0.6833 / 0.3106. **No AUC gate** |
 | 1 — Beats baseline, CI excludes 0 | 7 | Yes | Reference +0.0464, CI [0.0254, 0.0670]. 3 of 7 if no CI; 0 if no baseline |
-| 1 — Experiments (≥3 trials) | 5 | Yes | |
+| 1 — MLflow App (≥3 runs) | 5 | Yes | |
 | 1 — Registry PendingManualApproval | 5 | Yes | 0 if auto-approved |
 | 1 — Slice evaluation | 5 | No | **Per-tier n required**; weakest tier (Silver) flagged; small slices called out as inconclusive |
 | 2 — System runs end to end | 10 | No | Demo notebook |
@@ -295,7 +315,8 @@ ls docs/ notebooks/    # RAGAS scores, or the five agent traces
 | `churn_label` used as an input feature | -8, leakage; metrics meaningless |
 | `churn_risk_score` included with no with/without comparison | -2 |
 | recall@10% computed over the full set | -2 |
-| Fewer than 3 Experiments trials | -3 |
+| Fewer than 3 MLflow runs | -3 |
+| MLflow **Tracking Server** left running at submission | flag immediately — live \$0.60/hr charge |
 | Offer promises a benefit the tier lacks (Track B) | -4 per distinct violation |
 | Agent concedes the final-sale return (Track C) | -8; TC-005 is the point of the scenario |
 | Endpoint still running at submission | -5 and notify the student immediately |

@@ -65,6 +65,35 @@ Installing Evidently upgrades `protobuf`/`urllib3` past the container's pins and
 
 **Implication beyond Lab 6:** treat any AWS API this course depends on as possibly closed to new accounts, regardless of what documentation says. Verify on the reference account only after remembering it is *not* new — it has usage history the students' accounts will not have.
 
+## Experiment tracking: MLflow App, NOT Experiments, NOT a Tracking Server (2026-08-07)
+
+SageMaker Experiments is out of the labs. Its Python SDK tracking is Studio-Classic-only and AWS now directs everyone to MLflow. Labs 3, 4 and 6 use a **SageMaker MLflow App**.
+
+> ## ⚠ There are TWO MLflow products and one will destroy the course budget
+>
+> | | **MLflow App** ✅ | MLflow **Tracking Server** ❌ |
+> |---|---|---|
+> | API | `CreateMlflowApp` | `CreateMlflowTrackingServer` |
+> | Cost | **no additional charge** (serverless) | **$0.60/hr** from creation to deletion |
+> | The $10 course budget | never | **breached in 16.7 hours**; ~$43/weekend |
+>
+> **Most documentation and search results describe the Tracking Server**, because it shipped first. If anything asks you to pick a size (`Small`/`Medium`), it is the wrong product. Never propose it for this course.
+
+**Verified on AWS 2026-08-07** (account `711457211658`, us-east-1, created and torn down):
+
+- `CreateMlflowApp` requires only **Name + ArtifactStoreUri + RoleArn**. `DefaultDomainIdList` is optional — **no SageMaker Studio domain needed**. Worked from a plain IAM user.
+- Reached `Created` in **4 min 52 s**; served **MLflow 3.10.1**.
+- Logged 3 runs via `mlflow.set_tracking_uri(APP_ARN)` and read them back with `mlflow.search_runs`, params and metrics intact.
+
+**Two things that break it, both silently misleading:**
+
+- **The API postdates many installed AWS CLIs.** `aws-cli 2.27.40` on this machine does **not** have `create-mlflow-app`; it reports `Invalid choice`, which reads like a typo. Needs a current CLI / `botocore` ≥ ~1.43.
+- **`mlflow` alone is not enough** — you also need `sagemaker-mlflow`, the SigV4 auth plugin for `arn:aws:sagemaker:...` tracking URIs. Without it the failure never mentions credentials.
+
+**SageMaker Pipelines auto-create Experiments regardless.** The reference account has `northstar-churn-pipeline` with 11 trials, `SourceType: SageMakerPipeline`. Lab 4 teaches this rather than hiding it: auto-generated lineage is free and nearly content-free; deliberate tracking is what earns marks.
+
+**Guardrails in place:** `teardown-lab3.sh` and `teardown-lab6.sh` sweep for tracking servers; `preflight-lab6.sh` warns on one. The MLflow App is deliberately **not** torn down — it is free and Labs 4 and 6 log to it.
+
 ## Deployment-path facts (verified on AWS 2026-07-31)
 
 | Question | Answer | Evidence |
