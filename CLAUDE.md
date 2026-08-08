@@ -81,6 +81,23 @@ Verified on account `711457211658`, us-east-1. Three separate Bedrock traps, all
 
 **Implication beyond Lab 6:** treat any AWS API this course depends on as possibly closed to new accounts, regardless of what documentation says. Verify on the reference account only after remembering it is *not* new — it has usage history the students' accounts will not have.
 
+## Lab 3 starter-kit defects found by RUNNING it (2026-08-08)
+
+`evaluation_harness.py` had never been executed. Four defects, all student-facing:
+
+| Defect | Effect |
+|---|---|
+| Track C required `--agent-id`/`--agent-alias-id` | Only `CreateAgent` produces those, and it is blocked — **no student could run Track C evaluation** |
+| `"escalate" in tool_calls` | Exact **list membership** vs a tool named `escalate_to_human` → always `False` |
+| `"human_agent" in response` | Prose never contains that literal → escalation **never detected**, so every `should_escalate=True` scenario auto-failed, TC-005 included |
+| `pip install ragas datasets langchain` | Installs fine, then `ModuleNotFoundError: langchain_community.chat_models.vertexai` |
+
+Fixes: `LocalAgentEvaluator` (student-supplied `invoke_fn`), one shared `detect_escalation()` helper used by both evaluators, and the pin **`pip install ragas datasets "langchain-community<0.4"`** (ragas 0.4.3 + langchain-community 0.3.31 works; 0.4.2 does not — the package is being sunset).
+
+**Reference agent scores 5/6, not 6/6.** TC-003 legitimately fails: on a 45-day boundary return it asks for an order ID instead of calling `query_policy` and escalating. Do not treat 6/6 as expected.
+
+> **`pip install` succeeding is not evidence the package works.** Import it. Same class of error as "the model ID is documented" and "the API exists" — verify by executing, not by reading.
+
 ## Experiment tracking: MLflow App, NOT Experiments, NOT a Tracking Server (2026-08-07)
 
 SageMaker Experiments is out of the labs. Its Python SDK tracking is Studio-Classic-only and AWS now directs everyone to MLflow. Labs 3, 4 and 6 use a **SageMaker MLflow App**.
