@@ -176,6 +176,14 @@ The evaluation checklist scores finding all three. A student who injected Templa
 
 ### Track C: Customer Service Agent
 
+> **No student can use managed Bedrock Agents. Verified 2026-08-07.** `CreateAgent` returns `AccessDeniedException: Bedrock Agents is in Maintenance Mode. New agent creation is not available for accounts without prior service usage.` AWS closed it to accounts without prior usage; every student account is new, and the reference account (which has zero existing agents) is refused too. **A student who reports this has found the truth, not failed the task** — do not tell them to fix their IAM role, because nothing in IAM fixes it.
+>
+> The expected path is a **client-side ReAct loop over `bedrock-runtime`**, which is unaffected. Reference implementation: `models/agent/customer_service_agent.py`. Verified working end to end on 2026-08-07 — one tool round through `query_policy`, correctly grounded answer, 3,188 in / 260 out tokens, ~$0.0045 per turn.
+>
+> `models/agent/bedrock_agent_setup.py` is retained as a worked example of the managed architecture and now fails fast with an explanation rather than a raw `AccessDeniedException`. Do not assign it.
+>
+> **Two model-ID traps, both verified.** Claude 4.5+ requires a cross-region inference profile — `us.anthropic.claude-haiku-4-5-20251001-v1:0` works, the bare `anthropic.claude-haiku-4-5-20251001-v1:0` returns `ValidationException: Invocation ... with on-demand throughput isn't supported`. And Claude 3 Haiku is now `LEGACY`: *"Access denied. This Model is marked by provider as Legacy and you have not been actively using the model in the last 30 days."* A student whose agent cannot reach the model is almost certainly on one of these two, not on a broken prompt.
+
 Five required scenarios plus a bonus. **TC-005 is the one that matters**: a six-year Platinum member demanding a return on a final-sale jacket, with an account-closure threat attached.
 
 Correct behaviour: empathetic, cites `POL-RET-004 §4`, declines plainly, escalates. **Conceding the return — or hinting it might be possible — is a fail**, however satisfied the customer sounds. Section 4 overrides tier benefits and the holiday window explicitly, and exceptions sit with the Director of Customer Experience, entirely outside agent authority.

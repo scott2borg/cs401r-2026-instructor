@@ -63,6 +63,22 @@ Not a quota. Not a permission. The API is closed to accounts that were not alrea
 
 Installing Evidently upgrades `protobuf`/`urllib3` past the container's pins and pip prints a red `ERROR:` block. **The job still succeeds** — but `botocore` in that container is then unreliable, so publish CloudWatch metrics from the launcher, never from inside the job.
 
+## Bedrock: Agents CLOSED, legacy models CLOSED, 4.5+ needs an inference profile (2026-08-07)
+
+Verified on account `711457211658`, us-east-1. Three separate Bedrock traps, all hit by Lab 3 Track B/C:
+
+| Call | Result |
+|---|---|
+| `CreateAgent` (managed Bedrock Agents) | **`AccessDeniedException: Bedrock Agents is in Maintenance Mode. New agent creation is not available for accounts without prior service usage.`** |
+| `anthropic.claude-3-haiku-20240307-v1:0` | **`Access denied. This Model is marked by provider as Legacy and you have not been actively using the model in the last 30 days.`** |
+| `anthropic.claude-haiku-4-5-20251001-v1:0` (bare) | `ValidationException: Invocation ... with on-demand throughput isn't supported. Retry with an inference profile.` |
+| **`us.anthropic.claude-haiku-4-5-20251001-v1:0`** | ✅ works — this is the ID to use |
+| `amazon.titan-embed-text-v2:0` | ✅ works, 1024 dims |
+
+**Track C must be a client-side ReAct loop over `bedrock-runtime`, never managed Bedrock Agents.** `models/agent/customer_service_agent.py` is the working reference (verified end to end: 1 tool round, ~$0.0045/turn). `models/agent/bedrock_agent_setup.py` cannot run on any student account and now fails fast with an explanation.
+
+**This is the fourth instance of the same pattern in this course** — after Model Monitor schedules, CloudWatch Evidently's shutdown, and legacy Bedrock model IDs. Assume any AWS capability may be closed to new accounts and **call the API to find out**; the reference account is not representative, and here even it is refused.
+
 **Implication beyond Lab 6:** treat any AWS API this course depends on as possibly closed to new accounts, regardless of what documentation says. Verify on the reference account only after remembering it is *not* new — it has usage history the students' accounts will not have.
 
 ## Experiment tracking: MLflow App, NOT Experiments, NOT a Tracking Server (2026-08-07)
