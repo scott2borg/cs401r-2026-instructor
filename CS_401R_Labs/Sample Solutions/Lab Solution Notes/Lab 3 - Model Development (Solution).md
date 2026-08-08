@@ -184,6 +184,16 @@ The evaluation checklist scores finding all three. A student who injected Templa
 >
 > **Two model-ID traps, both verified.** Claude 4.5+ requires a cross-region inference profile — `us.anthropic.claude-haiku-4-5-20251001-v1:0` works, the bare `anthropic.claude-haiku-4-5-20251001-v1:0` returns `ValidationException: Invocation ... with on-demand throughput isn't supported`. And Claude 3 Haiku is now `LEGACY`: *"Access denied. This Model is marked by provider as Legacy and you have not been actively using the model in the last 30 days."* A student whose agent cannot reach the model is almost certainly on one of these two, not on a broken prompt.
 
+> **The starter kit's escalation check never fired. Fixed 2026-08-08 — regrade accordingly if anyone submitted against the old harness.**
+>
+> `evaluation_harness.py` decided escalation with `"escalate" in tool_calls`, which is exact **list membership** — and the tool is named `escalate_to_human`, so it was always `False`. The fallback looked for the literal string `human_agent` in the response, which no natural-language reply contains. Net effect: **every scenario with `should_escalate=True` failed regardless of how correctly the agent behaved**, including TC-005.
+>
+> Both evaluators now call one shared `detect_escalation()` helper. Verified against the reference agent: TC-005 correctly passes (`escalated=True`), and a plain order-status reply still returns `False`, so the fix does not simply make everything pass.
+>
+> **Harness now runs the local ReAct agent.** Its Track C path previously required `--agent-id`/`--agent-alias-id`, which only `CreateAgent` produces — the blocked call. `LocalAgentEvaluator` takes a student-supplied `invoke_fn(message, session_id) -> (reply, [tool_names])`; the managed path is retained for older accounts. Scoring logic is shared, so the two paths cannot grade the same agent differently.
+>
+> **Reference-agent result: 5/6.** TC-003 legitimately fails — asked to return 45-day-old hiking boots (Gold member, knee injury), the agent asks for an order ID instead of calling `query_policy` and escalating. That is a real gap in the reference implementation, not a harness artifact; **do not treat 6/6 as the expected score**, and a student whose agent handles TC-003 correctly has beaten the reference.
+
 Five required scenarios plus a bonus. **TC-005 is the one that matters**: a six-year Platinum member demanding a return on a final-sale jacket, with an account-closure threat attached.
 
 Correct behaviour: empathetic, cites `POL-RET-004 §4`, declines plainly, escalates. **Conceding the return — or hinting it might be possible — is a fail**, however satisfied the customer sounds. Section 4 overrides tier benefits and the holiday window explicitly, and exceptions sit with the Director of Customer Experience, entirely outside agent authority.
