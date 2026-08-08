@@ -1,3 +1,15 @@
+---
+tags: [CS401R, lab-solution, lab-7, sample-deliverable, economics, business-value]
+course: CS 401R
+lab: 7
+status: sample-deliverable
+source: rescued from the retired Sample Solutions/northstar-ai-platform tree, 2026-08-07
+---
+
+> **Worked sample deliverable — not a grading guide.** This is an example of what a
+> strong Lab 7 submission looks like. The TA grading rubric lives in the companion
+> file `Lab 7 - … (Solution).md`. For instructor use; not distributed to students.
+
 # Lab 7 Value Scorecard — NorthStar AI Platform
 
 **Platform:** NorthStar Retail AI Platform  

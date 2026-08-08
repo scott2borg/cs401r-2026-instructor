@@ -1,3 +1,15 @@
+---
+tags: [CS401R, lab-solution, lab-4, sample-deliverable, xops, cicd, maturity]
+course: CS 401R
+lab: 4
+status: sample-deliverable
+source: rescued from the retired Sample Solutions/northstar-ai-platform tree, 2026-08-07
+---
+
+> **Worked sample deliverable — not a grading guide.** This is an example of what a
+> strong Lab 4 submission looks like. The TA grading rubric lives in the companion
+> file `Lab 4 - … (Solution).md`. For instructor use; not distributed to students.
+
 # NorthStar Retail — XOps Maturity Assessment
 **Lab 4 | CS 401R | Assessed against the five-level NorthStar XOps rubric**
 
@@ -39,7 +51,7 @@ Concrete impact: breach detection time drops from "someone checks the dashboard 
 - CI/CD pipeline (CodePipeline + CodeBuild, `pipeline/cicd/`) triggers on every push to `main`. Every model candidate must pass 4 test categories before promotion is possible.
 - Model Registry (`northstar-churn-model-group`) captures every model version with AUC-ROC, Precision@10, Recall@10, training data URI, and commit SHA as metadata. Models start in `PendingManualApproval` and require both automated gate passage and a human approval step.
 - Champion-challenger regression gate: a new model is promoted only if its AUC-ROC is >= (champion AUC − 0.02), enforced in `tests/test_model.py::TestRegressionGate`.
-- Experiment tracking: SageMaker Experiments logs >= 3 hyperparameter trials per training run, making hyperparameter search reproducible and auditable.
+- Experiment tracking: a SageMaker **MLflow App** logs >= 3 hyperparameter runs per training cycle, making hyperparameter search reproducible and auditable. (Updated 2026-08-07: this was SageMaker Experiments, whose SDK tracking is Studio-Classic-only; the course moved to the serverless MLflow App.)
 - Two retraining triggers are defined (see Retraining Triggers section below).
 
 ### Gap to Level 3 (Defined)

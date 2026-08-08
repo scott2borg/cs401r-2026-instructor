@@ -1,3 +1,15 @@
+---
+tags: [CS401R, lab-solution, lab-1, sample-deliverable, architecture, ADR, terraform]
+course: CS 401R
+lab: 1
+status: sample-deliverable
+source: rescued from the retired Sample Solutions/northstar-ai-platform tree, 2026-08-07
+---
+
+> **Worked sample deliverable — not a grading guide.** This is an example of what a
+> strong Lab 1 submission looks like. The TA grading rubric lives in the companion
+> file `Lab 1 - … (Solution).md`. For instructor use; not distributed to students.
+
 # ADR-001: NorthStar Platform Foundation — Lab 1 Architecture
 
 ## Status

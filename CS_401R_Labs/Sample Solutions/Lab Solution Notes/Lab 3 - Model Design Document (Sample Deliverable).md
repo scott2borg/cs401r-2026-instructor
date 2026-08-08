@@ -1,3 +1,15 @@
+---
+tags: [CS401R, lab-solution, lab-3, sample-deliverable, model-development, mlflow, XGBoost]
+course: CS 401R
+lab: 3
+status: sample-deliverable
+source: rescued from the retired Sample Solutions/northstar-ai-platform tree, 2026-08-07
+---
+
+> **Worked sample deliverable — not a grading guide.** This is an example of what a
+> strong Lab 3 submission looks like. The TA grading rubric lives in the companion
+> file `Lab 3 - … (Solution).md`. For instructor use; not distributed to students.
+
 # Lab 3: Model Design Document
 ## NorthStar Retail AI Platform — CS 401R Sample Solution
 

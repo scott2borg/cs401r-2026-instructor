@@ -29,12 +29,13 @@ it, open that repo. Do not copy it back into the vault.
 
 ## Contents
 
+> **The four worked deliverables have been promoted out of here (2026-08-07).**
+> They now live in `Lab Solution Notes/` as `Lab N - … (Sample Deliverable).md`,
+> with frontmatter and a header distinguishing them from the TA grading guides.
+> `docs/` is gone. Only superseded *code* remains below.
+
 | Path | What it appears to be |
 |---|---|
-| `docs/lab1-architecture-decision-record.md` | Sample student deliverable, Lab 1 |
-| `docs/lab3-model-design.md` | Sample student deliverable, Lab 3 |
-| `docs/lab4-xops-assessment.md` | Sample student deliverable, Lab 4 |
-| `docs/lab7-value-scorecard.md` | Sample student deliverable, Lab 7 |
 | `models/churn/` | Superseded training code (live repo restructured this) |
 | `models/agent/`, `models/offers/` | Track B/C Bedrock agent and RAG code |
 | `pipeline/` | Superseded pipeline + tests (tests now live at `tests/`) |
@@ -43,10 +44,9 @@ it, open that repo. Do not copy it back into the vault.
 | `deployment/security/kms_config.tf` | KMS config not present in the live repo |
 | `_retired-old-lab2-architecture/` | Was already marked retired inside the retired tree |
 
-The four `docs/lab*.md` files are the most likely to be worth keeping — they
-read as worked examples of student deliverables, which the course otherwise
-has no copies of. The code is probably safe to drop once someone confirms the
-live repo covers it.
+The worked deliverables were the part worth keeping, and they have been moved.
+What is left is superseded code. It is probably safe to drop once someone
+confirms the live repo covers it — nothing here is referenced by any lab.
 
 ## Provenance
 
