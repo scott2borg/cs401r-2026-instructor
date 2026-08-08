@@ -213,16 +213,30 @@ def main():
     print("\n── Course files ──")
     files = api._get_all("/files?per_page=100")
     folders = {f["id"]: f["full_name"] for f in api._get_all("/folders?per_page=100")}
+    # Match the folder EXACTLY, not as a substring. "Lab Guides" is a
+    # substring of "Pre-Lab Guides", so `key in folder` put every pre-lab
+    # guide into the Lab Guides bucket as well. That reported
+    #   FAIL  Lab Guides: 9 file(s), expected 7
+    # against a course where both folders were correct -- 7 lab guides plus
+    # the 2 pre-lab guides double-counted. clean_lab_guides.py got this right
+    # with endswith() and reported 0 strays, which is how the contradiction
+    # surfaced. A verifier that cries wolf is worse than no verifier: the next
+    # person reaches for a delete script against a clean course.
+    # These must be the folder names the pipeline ACTUALLY creates -- see
+    # get_or_create_folder() in stage1_structure.py and stage3_starters.py.
+    # The starter-kit folder is "Lab Starter Kits", not "Starter Kits"; the
+    # old substring match happened to catch it, an exact match on the wrong
+    # name would silently report "stage 3 may not have run" on a good course.
+    def in_folder(f, key):
+        return folders.get(f["folder_id"], "").endswith(f"/{key}")
+
     counts = {}
     for f in files:
-        folder = folders.get(f["folder_id"], "?")
-        for key in ("Lab Guides", "Pre-Lab Guides", "Starter Kits"):
-            if key in folder:
+        for key in ("Lab Guides", "Pre-Lab Guides", "Lab Starter Kits"):
+            if in_folder(f, key):
                 counts[key] = counts.get(key, 0) + 1
     # Check MEMBERSHIP, not count. A count tells you something is wrong; the
-    # expected filenames tell you which file and in which direction. The two
-    # pre-lab guides sat in Lab Guides for a while and a bare count could not
-    # say whether that was a missing lab or an extra stray.
+    # expected filenames tell you which file and in which direction.
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from pipeline import lab_content
 
@@ -233,8 +247,7 @@ def main():
                            for pl in cfg.get("prelabs", [])},
     }
     for key, want in expected_files.items():
-        have = {f["display_name"] for f in files
-                if key in folders.get(f["folder_id"], "")}
+        have = {f["display_name"] for f in files if in_folder(f, key)}
         missing, extra = want - have, have - want
         if not missing and not extra:
             ok(f"{key}: exactly the {len(want)} expected file(s)")
@@ -244,10 +257,10 @@ def main():
             print(f"          MISSING  {n}")
         for n in sorted(extra):
             print(f"          STRAY    {n}")
-    if counts.get("Starter Kits", 0) > 0:
-        ok(f"Starter Kits: {counts['Starter Kits']} file(s)")
+    if counts.get("Lab Starter Kits", 0) > 0:
+        ok(f"Lab Starter Kits: {counts['Lab Starter Kits']} file(s)")
     else:
-        warn("Starter Kits: no files found", "stage 3 may not have run")
+        warn("Lab Starter Kits: no files found", "stage 3 may not have run")
 
     # ── 7b. Chapter readings and starter kits ───────────────────────────────
     #
@@ -257,7 +270,7 @@ def main():
     print("\n── Chapter readings (stage 2) ──")
     want_pdfs = {ch["pdf"] for ch in cfg.get("chapters", [])}
     have_pdfs = {f["display_name"] for f in files
-                 if "Readings" in folders.get(f["folder_id"], "")}
+                 if in_folder(f, "Readings")}
     if not have_pdfs:
         bad(f"no Readings folder or no files in it",
             f"expected {len(want_pdfs)} chapter PDF(s) — stage 2 did not complete")
@@ -275,7 +288,7 @@ def main():
     print("\n── Presentations (stage 6) ──")
     want_p = {pathlib.Path(d["file"]).name for d in cfg.get("presentations", [])}
     have_p = {f["display_name"] for f in files
-              if "Presentations" in folders.get(f["folder_id"], "")}
+              if in_folder(f, "Presentations")}
     if not want_p:
         warn("no presentations configured")
     else:
@@ -298,7 +311,7 @@ def main():
                 and (pathlib.Path(__file__).parent / l["starter_kit"]).is_dir()]
     want_kits = {f"Lab{n}-Starter-Kit.zip" for n in kit_labs}
     have_kits = {f["display_name"] for f in files
-                 if "Starter Kits" in folders.get(f["folder_id"], "")}
+                 if in_folder(f, "Lab Starter Kits")}
     missing_k, extra_k = want_kits - have_kits, have_kits - want_kits
     if want_kits and not missing_k and not extra_k:
         ok(f"all {len(want_kits)} starter kit zip(s) present")
