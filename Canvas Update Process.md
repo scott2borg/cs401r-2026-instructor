@@ -16,6 +16,33 @@ project root, *not* `Canvas LMS/`, which now holds only retired code.
 
 ---
 
+## Before you paste anything — one-time zsh fix
+
+**Every command block in this document has `# explanatory comments`, and zsh
+does not understand them by default.** Unlike bash, zsh leaves
+`interactive_comments` **off** in interactive shells, so pasting
+
+```
+unset CANVAS_API_TOKEN        # drop the stale one
+```
+
+passes `#`, `drop`, `the`, `stale`, `one` to `unset` as arguments and fails with
+`unset: #: invalid parameter name`. Nothing is wrong with the command.
+
+Fix it once:
+
+```bash
+echo 'setopt interactive_comments' >> ~/.zshrc
+exec zsh
+```
+
+Verify with `setopt | grep interactivecomments` — it should now be listed.
+
+Without this, either retype commands without their comments, or paste only the
+part before the `#`.
+
+---
+
 ## The short version
 
 ```bash
@@ -200,6 +227,7 @@ Every row below is a failure that actually happened.
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `unset: #: invalid parameter name` (or a `#` treated as an argument) | **zsh does not treat `#` as a comment interactively.** `interactive_comments` is off by default, so pasting any command with a trailing `# note` passes the comment as arguments | `setopt interactive_comments` — see below. Or retype the command without the comment |
 | `can't open file '.../Canvas LMS/build_course.py'` | Running from the wrong directory | `cd` to the project root |
 | Terminal looks hung after the token line | `read -rs` is silent by design | Paste and press Enter |
 | Long silence during a build, looks hung | Python block-buffers stdout when piped to `tee` | Use `python -u`, or drop the pipe |
