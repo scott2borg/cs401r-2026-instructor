@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Diagnose CANVAS_API_TOKEN without revealing it.
 
+Checks the ENV VAR specifically. If you store the token with
+canvas_login.py instead, use `python canvas_login.py --status`.
+
 Reports the shape of whatever is in the variable -- length, prefix, and any
 stray characters -- then tries a single authenticated call. Prints enough to
 identify the problem and never enough to leak the credential.

@@ -21,11 +21,15 @@ project root, *not* `Canvas LMS/`, which now holds only retired code.
 ```bash
 cd "/Users/scott1/Documents/Vault/Efforts/Projects/Active/CS_401R_2026"
 
-printf 'Canvas token: '; read -rs CANVAS_API_TOKEN; echo; export CANVAS_API_TOKEN
+python canvas_login.py            # ONCE, ever. Stores in the macOS Keychain.
 
 python build_course.py            # validates, then stages 1-4
 python verify_course.py           # independent read-back
 ```
+
+**There is no `export` step any more.** `canvas_login.py` validates the token
+against Canvas *before* storing it, and both scripts find it themselves. It
+survives new shells and new terminal tabs.
 
 If `verify_course.py` ends with `FAIL 0`, you are done. Everything is created
 **unpublished**; students see nothing until you publish modules.
@@ -50,32 +54,62 @@ Canvas UI.** The next run overwrites them without warning. Edit the source.
 
 ---
 
-## Step 1 — Token
+## Step 1 — Token (once, then never again)
 
 Canvas → avatar → **Account** → **Settings** → **Approved Integrations** →
-**New Access Token**. Copy it immediately; Canvas shows it once.
+**New Access Token**. Copy it with the **copy button**; Canvas shows it once.
+
+```bash
+python canvas_login.py
+```
+
+It prompts with input hidden, **validates the token against Canvas and the
+course**, and only then stores it in the macOS Keychain. A truncated paste
+fails here, in two seconds, instead of halfway through a build.
+
+| Command | Does |
+|---|---|
+| `python canvas_login.py` | store it (refuses to clobber an existing entry) |
+| `python canvas_login.py --status` | is one stored, and does it still work? |
+| `python canvas_login.py --replace` | overwrite after regenerating in Canvas |
+| `python canvas_login.py --forget` | remove it |
+
+**Where the token comes from, in order:** `$CANVAS_API_TOKEN` → Keychain →
+prompt. Every script prints which one it used, e.g.
+`[token from macOS Keychain]`.
+
+> **`$CANVAS_API_TOKEN` beats the Keychain.** That is deliberate — an explicit
+> export should win — but it is the one sharp edge left. If a shell still has
+> an old token exported and you have since regenerated it in Canvas, that
+> shell keeps using the dead one. **This is exactly what happened on
+> 2026-08-07.** The preflight now names the source and tells you to
+> `unset CANVAS_API_TOKEN`.
+
+Two rules that still hold:
+
+- **Never paste it into a chat.** It is a full-privilege credential on a live
+  course. If it is ever exposed, revoke first and ask questions after.
+- **Never type it on a command line.** `export CANVAS_API_TOKEN="7407~..."`
+  lands verbatim in `~/.zsh_history`. `canvas_login.py` uses `getpass`, and
+  writes to the Keychain via `security -i` so the token never appears in this
+  process's `argv` where `ps` could read it.
+
+When the course is done: revoke the token in Canvas, then
+`python canvas_login.py --forget`.
+
+<details>
+<summary>If you are not on macOS, or want a one-off shell</summary>
 
 ```bash
 printf 'Canvas token: '; read -rs CANVAS_API_TOKEN; echo; export CANVAS_API_TOKEN
 ```
 
-**It reads silently — you will see nothing as you paste. That is correct.** Paste
-and press Enter.
-
-Three rules, each learned the hard way:
-
-- **Never type it on the command line.** `export CANVAS_API_TOKEN="7407~..."`
-  is saved verbatim in `~/.zsh_history`.
-- **Never paste it into a chat.** It is a full-privilege credential on a live
-  course. If it is ever exposed, revoke first and ask questions after.
-- **Do not use `read -rsp "prompt" VAR`.** That is the bash idiom; in zsh `-p`
-  means *read from the coprocess*, so it prompts for nothing, sets the variable
-  **empty**, and appears to succeed. The `printf` form above works in both.
-
-**Paste the token line by itself.** If you paste the whole command block at
-once, `read` consumes the next line of the buffer instead of waiting for you.
-
-Delete the token when you are finished.
+Paste the token line **by itself** — pasting the whole block makes `read`
+consume the next line instead of waiting. And do **not** use
+`read -rsp "prompt" VAR`: that is the bash idiom, and in zsh `-p` means *read
+from the coprocess*, so it prompts for nothing, sets the variable **empty**,
+and appears to succeed.
+</details>
 
 ---
 
@@ -266,6 +300,7 @@ Read-only unless you pass `--apply`. Each has a dry run.
 | `debug_files.py` | **Start here** for any file problem. Prints per-endpoint counts, Link-header presence, and every folder with its file count |
 | `survey_course.py` | "What is actually in the course?" Read-only |
 | `find_duplicates.py` | Every entity type scanned for duplicates; excludes quiz shadows |
+| `canvas_login.py` | Store/replace/forget the Keychain token; `--status` tests it |
 | `check_token.py` | Auth failing. Reports the token's shape without revealing it |
 | `set_course_id.py` | Point the config at a different course (needed after a Reset) |
 | `fix_assignment_groups.py` | Duplicate/misnamed groups, wrong weights |

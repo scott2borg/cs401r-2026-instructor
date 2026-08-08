@@ -5,7 +5,8 @@ CS 401R Canvas Course Builder — Main Orchestrator
 Runs the pipeline that creates/updates the Canvas course.
 
 Usage:
-    export CANVAS_API_TOKEN="7407~..."
+    python canvas_login.py          # once; stores in the macOS Keychain
+    (or export CANVAS_API_TOKEN for a one-off shell)
     python build_course.py                              # run all Canvas stages (1-4, 6)
     python build_course.py --stage 1                   # structure only
     python build_course.py --stage 2                   # chapter PDFs only
@@ -35,7 +36,8 @@ Flags:
     --preview-questions     Run AI generation and print questions; do NOT upload.
 
 Environment variables:
-    CANVAS_API_TOKEN     Required for stages 1–4
+    CANVAS_API_TOKEN     Optional. Overrides the Keychain (canvas_login.py).
+                         Stages 1-4 and 6 need a token from one source or the other.
     CANVAS_COURSE_ID     Optional override for course_config.yaml canvas.course_id
     ANTHROPIC_API_KEY    Required for --generate-questions
     GITHUB_TOKEN         Required for stage 5
@@ -50,6 +52,7 @@ import sys
 import yaml
 
 from pipeline.canvas_api import CanvasAPI
+from pipeline import canvas_token
 from pipeline import stage1_structure
 from pipeline import stage2_readings
 from pipeline import stage3_starters
@@ -71,18 +74,22 @@ def load_config(path: str) -> dict:
 
 
 def build_api(cfg: dict) -> CanvasAPI:
-    token = os.environ.get("CANVAS_API_TOKEN", "").strip()
-    if not token:
-        sys.exit(
-            "ERROR: Set CANVAS_API_TOKEN environment variable.\n"
-            "  printf 'Canvas token: '; read -rs CANVAS_API_TOKEN; echo; export CANVAS_API_TOKEN\n"
-            "  (Reads silently -- you will see nothing as you paste. That is correct.)\n"
-            "  (Use `read -rs` so the token never lands in ~/.zsh_history.)\n"
-            "  (Never hardcode tokens in source files.)\n"
-            "  After use: Canvas → Account → Settings → Approved Integrations → Delete"
-        )
+    """Resolve the token, then PROVE it works before any stage runs.
+
+    Writes go through CanvasAPI._post/_put, which print `✗ <status>` and return
+    None rather than raise -- so one bad item does not abandon a long run. The
+    side effect is that a bad TOKEN is indistinguishable from hundreds of bad
+    items: on 2026-08-07 a rejected token produced a wall of `✗ 401`, wrote
+    nothing, and still exited 0. The preflight below turns that into one clear
+    error before the first write.
+    """
     canvas    = cfg["canvas"]
-    course_id = os.environ.get("CANVAS_COURSE_ID", canvas["course_id"]).strip()
+    course_id = os.environ.get("CANVAS_COURSE_ID", "").strip() or canvas["course_id"]
+
+    token, source = canvas_token.resolve()
+    who = canvas_token.preflight(canvas["base_url"], token, source, course_id)
+    print(f"Authenticated as {who}  [token from {source}]")
+
     return CanvasAPI(canvas["base_url"], course_id, token)
 
 

@@ -17,9 +17,10 @@ the failures that have actually bitten this course:
   * An assignment created but placed in **no module**, because module lookup is
     by exact name and a mismatch fails silently by design of the Canvas API.
 
-Run it with the same environment as the build:
+Resolves the token exactly as build_course.py does ($CANVAS_API_TOKEN,
+then the macOS Keychain, then a prompt):
 
-    export CANVAS_API_TOKEN="1234~..."
+    python canvas_login.py          # once; stores in the macOS Keychain
     python verify_course.py
 
 Exits non-zero if anything FAILs.
@@ -35,6 +36,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pipeline.canvas_api import CanvasAPI  # noqa: E402
+from pipeline import canvas_token  # noqa: E402
 
 CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "course_config.yaml")
 
@@ -62,36 +64,18 @@ RETIRED = [
 FALLBACK = "see the course repository"
 
 
-def preflight(api, cfg):
-    """Fail with a diagnosis, not a traceback."""
-    r = requests.get(f"{api.base_url}/api/v1/users/self", headers=api.headers)
-    if r.status_code == 401:
-        sys.exit(
-            f"ERROR: Canvas rejected the token ({len(api.headers.get('Authorization','')) - 7} chars).\n"
-            "       Most often it is simply not exported in THIS shell.\n"
-            "       Otherwise it has expired, or was truncated on paste.\n"
-            "       New token: avatar -> Account -> Settings -> Approved Integrations."
-        )
-    r.raise_for_status()
-    print(f"Authenticated as {r.json().get('name','?')}")
-    c = requests.get(api.root, headers=api.headers)
-    if c.status_code == 404:
-        sys.exit(f"ERROR: course {cfg['canvas']['course_id']} not found, or the token cannot see it.")
-    c.raise_for_status()
-    print(f"Course: {c.json().get('name','?')}\n")
-
-
 def main():
     cfg = yaml.safe_load(open(CONFIG))
-    token = os.environ.get("CANVAS_API_TOKEN", "").strip().strip('"').strip("'")
-    if not token:
-        sys.exit('ERROR: CANVAS_API_TOKEN is empty or unset in this shell.\n'
-                 '       That is what produces Canvas\'s "Invalid access token."')
     course_id = os.environ.get("CANVAS_COURSE_ID", "").strip() or cfg["canvas"]["course_id"]
+
+    # Same resolution and preflight as build_course.py, so "it built but would
+    # not verify" cannot be an auth mismatch between the two scripts.
+    token, source = canvas_token.resolve()
+    who = canvas_token.preflight(cfg["canvas"]["base_url"], token, source, course_id)
     api = CanvasAPI(cfg["canvas"]["base_url"], course_id, token)
 
-    print(f"Verifying {cfg['canvas']['base_url']}/courses/{course_id}\n")
-    preflight(api, cfg)
+    print(f"Verifying {cfg['canvas']['base_url']}/courses/{course_id}")
+    print(f"Authenticated as {who}  [token from {source}]\n")
 
     assigns = api._get_all("/assignments")
     by_name = {}
